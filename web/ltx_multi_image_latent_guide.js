@@ -45,6 +45,50 @@ function getWidgetValue(node, name, fallback) {
   return widget ? widget.value : fallback;
 }
 
+function hideWidget(widget) {
+  if (!widget) return;
+  widget.type = "hidden";
+  widget.draw = () => {};
+  widget.computeSize = () => [0, -4];
+}
+
+function guideWidgetHeight(node) {
+  const rowCount = readGuides(node).length;
+  const rowHeight = 30;
+  const visibleRows = Math.min(rowCount, 5);
+  const listHeight = visibleRows > 0 ? visibleRows * rowHeight + 2 : 0;
+  return 112 + listHeight;
+}
+
+function updateNodeHeight(node) {
+  if (!node?._ltx23) return;
+  const guides = readGuides(node);
+  const rowCount = guides.length;
+  const list = node._ltx23.list;
+  if (list) {
+    if (rowCount === 0) {
+      list.style.display = "none";
+      list.style.height = "0px";
+    } else {
+      const height = Math.min(rowCount, 5) * 30 + 2;
+      list.style.display = "";
+      list.style.height = `${height}px`;
+      list.style.maxHeight = `${height}px`;
+    }
+  }
+  if (node._ltx23.container) {
+    node._ltx23.container.style.height = `${guideWidgetHeight(node)}px`;
+  }
+  requestAnimationFrame(() => {
+    const width = Math.max(node.size?.[0] || 390, 390);
+    if (node.computeSize) {
+      const computed = node.computeSize();
+      node.setSize([width, computed[1]]);
+    }
+    node.setDirtyCanvas(true, true);
+  });
+}
+
 function setGuidesJson(node) {
   const widget = getWidget(node, "guides_json");
   const payload = {
@@ -256,6 +300,7 @@ function renderRows(node) {
     list.appendChild(row);
   }
   updateSummary(node);
+  updateNodeHeight(node);
 }
 
 async function saveGuideSet(node) {
@@ -334,8 +379,8 @@ function setupNode(node) {
 
   const guidesWidget = getWidget(node, "guides_json");
   if (guidesWidget) {
-    guidesWidget.type = "hidden";
-    guidesWidget.computeSize = () => [0, -4];
+    hideWidget(guidesWidget);
+    guidesWidget.serializeValue = () => guidesWidget.value || "{\"version\":1,\"guides\":[]}";
   }
 
   const container = document.createElement("div");
@@ -351,8 +396,12 @@ function setupNode(node) {
       <button data-action="load">Load Set</button>
     </div>
     <div class="ltx23-guide-list"></div>`;
-  node.addDOMWidget("guide_manager", "div", container, { serialize: false });
+  const guideWidget = node.addDOMWidget("guide_manager", "div", container, { serialize: false });
+  guideWidget.computeSize = () => [Math.max((node.size?.[0] || 390) - 20, 360), guideWidgetHeight(node)];
+  guideWidget.serialize = false;
   node._ltx23 = {
+    container,
+    widget: guideWidget,
     summary: container.querySelector(".ltx23-guide-summary"),
     list: container.querySelector(".ltx23-guide-list"),
   };
