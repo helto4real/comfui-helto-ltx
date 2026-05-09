@@ -15,6 +15,9 @@ env/
 thumbnail_cache/
 *.log
 
+# Local machine folder aliases
+config/folders.json
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
