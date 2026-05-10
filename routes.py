@@ -60,10 +60,11 @@ async def delete_folder(request):
 async def get_images(request):
     try:
         alias = request.query.get("alias", "")
+        recursive = request.query.get("recursive", "1").lower() not in {"0", "false", "no"}
         folder = folder_by_alias(alias)
         if not os.path.isdir(folder.path):
             return web.json_response({"images": [], "warning": "Folder does not exist."})
-        images = list_images(folder.path)
+        images = list_images(folder.path, recursive=recursive)
         for image in images:
             image["thumb_url"] = (
                 "/ltx23_guides/thumb?"

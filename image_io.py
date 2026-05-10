@@ -70,12 +70,13 @@ def load_guide_tensor(path, width, height, resize_mode, pad_color):
     return image_to_tensor(resized), original_size
 
 
-def list_images(root):
+def list_images(root, recursive=True):
     root = Path(root)
     results = []
     if not root.is_dir():
         return results
-    for dirpath, _, filenames in os.walk(root):
+    walker = os.walk(root) if recursive else [(root, [], [p.name for p in root.iterdir() if p.is_file()])]
+    for dirpath, _, filenames in walker:
         for filename in filenames:
             path = Path(dirpath) / filename
             if path.suffix.lower() not in IMAGE_EXTENSIONS:
