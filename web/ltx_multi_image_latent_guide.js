@@ -8,15 +8,17 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "ltx23-guide-styles";
   style.textContent = `
-    .ltx23-guide-root { font: 12px Arial, sans-serif; color: #ddd; width: 100%; }
-    .ltx23-guide-summary { padding: 6px 8px; border: 1px solid #444; background: #202020; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ltx23-guide-root { box-sizing: border-box; font: 12px Arial, sans-serif; color: #ddd; width: 100%; max-width: 100%; overflow: hidden; }
+    .ltx23-guide-root * { box-sizing: border-box; }
+    .ltx23-guide-summary { display: block; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid #444; background: #202020; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ltx23-guide-toolbar { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
     .ltx23-guide-toolbar button, .ltx23-guide-row button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; cursor: pointer; }
     .ltx23-guide-toolbar button:hover, .ltx23-guide-row button:hover { background: #444; }
-    .ltx23-guide-list { margin-top: 6px; max-height: 130px; overflow: auto; border: 1px solid #333; border-radius: 4px; }
-    .ltx23-guide-row { display: grid; grid-template-columns: 18px 1fr 54px 48px 32px 42px 46px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid #2d2d2d; }
+    .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 130px; overflow: hidden auto; border: 1px solid #333; border-radius: 4px; }
+    .ltx23-guide-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px 48px 26px 26px 28px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid #2d2d2d; }
     .ltx23-guide-row:last-child { border-bottom: 0; }
     .ltx23-guide-row input, .ltx23-guide-row select { min-width: 0; background: #181818; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px 3px; }
+    .ltx23-guide-row button { min-width: 0; height: 24px; padding: 1px 4px; }
     .ltx23-guide-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ltx23-guide-preview { position: fixed; z-index: 10000; pointer-events: none; display: none; max-width: 520px; max-height: 380px; overflow: auto; background: #191919; border: 1px solid #555; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,.45); padding: 8px; }
     .ltx23-guide-preview.visible { display: block; }
@@ -52,6 +54,10 @@ function hideWidget(widget) {
   widget.computeSize = () => [0, -4];
 }
 
+function nodeInnerWidth(node) {
+  return Math.max((node.size?.[0] || 390) - 28, 320);
+}
+
 function guideWidgetHeight(node) {
   const rowCount = readGuides(node).length;
   const rowHeight = 30;
@@ -64,6 +70,7 @@ function updateNodeHeight(node) {
   if (!node?._ltx23) return;
   const guides = readGuides(node);
   const rowCount = guides.length;
+  const innerWidth = nodeInnerWidth(node);
   const list = node._ltx23.list;
   if (list) {
     if (rowCount === 0) {
@@ -78,6 +85,12 @@ function updateNodeHeight(node) {
   }
   if (node._ltx23.container) {
     node._ltx23.container.style.height = `${guideWidgetHeight(node)}px`;
+    node._ltx23.container.style.width = `${innerWidth}px`;
+    node._ltx23.container.style.maxWidth = `${innerWidth}px`;
+  }
+  if (node._ltx23.widget?.element) {
+    node._ltx23.widget.element.style.width = `${innerWidth}px`;
+    node._ltx23.widget.element.style.maxWidth = `${innerWidth}px`;
   }
   requestAnimationFrame(() => {
     const width = Math.max(node.size?.[0] || 390, 390);
@@ -264,9 +277,9 @@ function renderRows(node) {
       <div class="ltx23-guide-name" title="${guide.folder_alias}/${guide.filename}">${guide.filename}</div>
       <input class="position" type="number" step="0.01" value="${guide.position ?? 0}" title="Position">
       <input class="strength" type="number" min="0" max="1" step="0.01" value="${guide.strength ?? 1}" title="Strength">
-      <button class="up" title="Move up">Up</button>
-      <button class="down" title="Move down">Down</button>
-      <button class="remove" title="Remove">X</button>`;
+      <button class="up" title="Move up">↑</button>
+      <button class="down" title="Move down">↓</button>
+      <button class="remove" title="Remove">×</button>`;
     row.querySelector(".enabled").addEventListener("change", (event) => {
       guide.enabled = event.target.checked;
       setGuidesJson(node);
@@ -398,7 +411,7 @@ function setupNode(node) {
     </div>
     <div class="ltx23-guide-list"></div>`;
   const guideWidget = node.addDOMWidget("guide_manager", "div", container, { serialize: false });
-  guideWidget.computeSize = () => [Math.max((node.size?.[0] || 390) - 20, 360), guideWidgetHeight(node)];
+  guideWidget.computeSize = () => [nodeInnerWidth(node), guideWidgetHeight(node)];
   guideWidget.serialize = false;
   node._ltx23 = {
     container,
@@ -451,6 +464,28 @@ function setupNode(node) {
     if (info?.properties?.ltx23_guides) this.properties.ltx23_guides = info.properties.ltx23_guides;
     renderRows(this);
     setGuidesJson(this);
+  };
+
+  const onResize = node.onResize;
+  node.onResize = function () {
+    onResize?.apply(this, arguments);
+    updateNodeHeight(this);
+  };
+
+  const onDrawForeground = node.onDrawForeground;
+  node.onDrawForeground = function () {
+    onDrawForeground?.apply(this, arguments);
+    if (this._ltx23) {
+      const width = `${nodeInnerWidth(this)}px`;
+      if (this._ltx23.container?.style.width !== width) {
+        this._ltx23.container.style.width = width;
+        this._ltx23.container.style.maxWidth = width;
+      }
+      if (this._ltx23.widget?.element?.style.width !== width) {
+        this._ltx23.widget.element.style.width = width;
+        this._ltx23.widget.element.style.maxWidth = width;
+      }
+    }
   };
 
   renderRows(node);
