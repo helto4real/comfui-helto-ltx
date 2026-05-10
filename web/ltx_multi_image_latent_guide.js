@@ -36,9 +36,13 @@ function injectStyles() {
     .ltx23-guide-dialog-row input, .ltx23-guide-dialog-row select { background: #151515; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px; }
     .ltx23-guide-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
     .ltx23-guide-dialog-actions button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
-    .ltx23-guide-browser-controls { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .ltx23-guide-browser-controls { display: grid; grid-template-columns: 1fr auto minmax(130px, 180px); gap: 8px; align-items: center; margin-bottom: 8px; }
     .ltx23-guide-browser-controls select, .ltx23-guide-browser-controls input { background: #151515; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px; }
     .ltx23-guide-browser-controls button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+    .ltx23-guide-browser-icon-button { width: 32px; height: 32px; padding: 4px !important; display: inline-flex; align-items: center; justify-content: center; }
+    .ltx23-guide-browser-icon-button svg, .ltx23-guide-columns-control svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ltx23-guide-columns-control { display: grid; grid-template-columns: 22px 1fr 18px; gap: 6px; align-items: center; color: #ddd; }
+    .ltx23-guide-columns-control input { width: 100%; min-width: 0; }
     .ltx23-guide-browser-options { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 8px 0; color: #ccc; }
     .ltx23-guide-browser-options button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
     .ltx23-guide-browser-grid { --ltx23-guide-columns: 4; display: grid; grid-template-columns: repeat(var(--ltx23-guide-columns), minmax(0, 1fr)); gap: 8px; max-height: 52vh; overflow: auto; padding: 2px; }
@@ -48,7 +52,6 @@ function injectStyles() {
     .ltx23-guide-tile { min-width: 0; background: #181818; border: 1px solid #444; border-radius: 5px; padding: 5px; color: #ddd; cursor: pointer; text-align: left; }
     .ltx23-guide-tile.selected { border-color: #8ab4f8; background: #202a36; }
     .ltx23-guide-tile img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: #101010; border: 1px solid #2d2d2d; border-radius: 3px; transition: opacity .12s ease; }
-    .ltx23-guide-tile-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 4px; font-size: 11px; }
     .ltx23-guide-browser-meta { margin-top: 8px; color: #aaa; font-size: 11px; min-height: 14px; }
   `;
   document.head.appendChild(style);
@@ -246,12 +249,15 @@ async function chooseGuide(node) {
   body.innerHTML = `
     <div class="ltx23-guide-browser-controls">
       <select class="folder" title="Folder"></select>
-      <button class="scope" type="button" title="Toggle recursive folder view">Recursive</button>
-      <label title="Images per row">Cols <input class="columns" type="range" min="2" max="8" step="1" value="4"></label>
+      <button class="scope ltx23-guide-browser-icon-button" type="button" title="Recursive folder view" aria-label="Recursive folder view"></button>
+      <label class="ltx23-guide-columns-control" title="Images per row">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        <input class="columns" type="range" min="2" max="8" step="1" value="4">
+        <span class="columns-value">4</span>
+      </label>
     </div>
     <div class="ltx23-guide-browser-options">
-      <button class="hover-hide" type="button">Hide on hover: On</button>
-      <span class="columns-value">4 per row</span>
+      <button class="hover-hide ltx23-guide-browser-icon-button" type="button" title="Hide images until hovering over window" aria-label="Hide images until hovering over window"></button>
     </div>
     <div class="ltx23-guide-browser-grid hide-images"></div>
     <div class="ltx23-guide-browser-meta"></div>
@@ -271,15 +277,26 @@ async function chooseGuide(node) {
   let hideImagesUntilHover = true;
   const folders = (await fetchJson("/ltx23_guides/folders")).folders;
   folderSelect.innerHTML = folders.map((folder) => `<option value="${folder.alias}">${folder.alias}${folder.exists ? "" : " (missing)"}</option>`).join("");
+  function syncScopeButton() {
+    scopeButton.title = recursive ? "Recursive folder view" : "Folder-only view";
+    scopeButton.setAttribute("aria-label", scopeButton.title);
+    scopeButton.innerHTML = recursive
+      ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h9a2 2 0 0 1 2 2v2"/><path d="M6 12v6a2 2 0 0 0 2 2h5"/><path d="M10 15h4l1.5 1.5H21v3.5H10z"/></svg>`
+      : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+  }
   function syncGridVisibility() {
-    hoverHideButton.textContent = `Hide on hover: ${hideImagesUntilHover ? "On" : "Off"}`;
+    hoverHideButton.title = hideImagesUntilHover ? "Hide images until hovering over window" : "Always show images";
+    hoverHideButton.setAttribute("aria-label", hoverHideButton.title);
+    hoverHideButton.innerHTML = hideImagesUntilHover
+      ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>`
+      : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/></svg>`;
     grid.classList.toggle("hide-images", hideImagesUntilHover);
     grid.classList.toggle("show-images", !hideImagesUntilHover);
   }
   function syncColumns() {
     const columns = Number(columnsInput.value || 4);
     grid.style.setProperty("--ltx23-guide-columns", String(columns));
-    columnsValue.textContent = `${columns} per row`;
+    columnsValue.textContent = String(columns);
   }
   function renderImageGrid() {
     grid.innerHTML = "";
@@ -290,8 +307,7 @@ async function chooseGuide(node) {
       tile.className = "ltx23-guide-tile";
       tile.title = image.filename;
       tile.innerHTML = `
-        <img src="${escapeHtml(image.thumb_url)}" alt="">
-        <div class="ltx23-guide-tile-name">${escapeHtml(image.filename)}</div>`;
+        <img src="${escapeHtml(image.thumb_url)}" alt="">`;
       tile.addEventListener("click", () => {
         selectedImage = image;
         for (const other of grid.querySelectorAll(".ltx23-guide-tile")) other.classList.remove("selected");
@@ -311,7 +327,7 @@ async function chooseGuide(node) {
   folderSelect.addEventListener("change", loadImages);
   scopeButton.addEventListener("click", async () => {
     recursive = !recursive;
-    scopeButton.textContent = recursive ? "Recursive" : "Folder only";
+    syncScopeButton();
     await loadImages();
   });
   columnsInput.addEventListener("input", syncColumns);
@@ -320,6 +336,7 @@ async function chooseGuide(node) {
     syncGridVisibility();
   });
   syncColumns();
+  syncScopeButton();
   await loadImages();
   showDialog("Add Guide Image", body, async () => {
     if (!selectedImage) throw new Error("Select an image first.");
