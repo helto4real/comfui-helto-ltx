@@ -3,9 +3,36 @@ from .ltx_native import apply_guides
 
 MAX_RESOLUTION = 16384
 DEFAULT_GUIDES_JSON = "{\"version\":1,\"guides\":[]}"
+GUIDE_DEFAULTS = {
+    "fps": 24.0,
+    "num_frames": 97,
+    "timing_mode": "frame",
+    "resize_mode": "contain",
+    "duplicate_policy": "error",
+    "pad_color": "0,0,0",
+    "img_compression": 35,
+    "global_strength": 1.0,
+    "start_images_strength": 0.85,
+}
 
 
-def stage_input_types(include_guides_json=False, include_image_guides=False):
+def guide_settings_input_types(include_start_strength=True):
+    settings = {
+        "fps": ("FLOAT", {"default": GUIDE_DEFAULTS["fps"], "min": 1.0, "max": 240.0, "step": 0.01, "tooltip": "Frames per second used when timing_mode is seconds."}),
+        "num_frames": ("INT", {"default": GUIDE_DEFAULTS["num_frames"], "min": 1, "max": MAX_RESOLUTION, "step": 8, "tooltip": "Pixel frame count used for timing, negative frame positions, and internally-created empty latents. Native LTXV lengths must be 8*n + 1, for example 97, 105, 113."}),
+        "timing_mode": (["frame", "seconds"], {"default": GUIDE_DEFAULTS["timing_mode"], "tooltip": "Interpret manual guide positions as frame indexes or seconds."}),
+        "resize_mode": (["contain", "pad", "stretch", "crop"], {"default": GUIDE_DEFAULTS["resize_mode"], "tooltip": "How guide images are resized before VAE encoding. contain/pad preserves aspect ratio with padding."}),
+        "duplicate_policy": (["error", "keep_first", "keep_last", "offset_next"], {"default": GUIDE_DEFAULTS["duplicate_policy"], "tooltip": "How to handle manual guide images that resolve to the same frame."}),
+        "pad_color": ("STRING", {"default": GUIDE_DEFAULTS["pad_color"], "tooltip": "RGB padding color for contain/pad resize mode. Accepts r,g,b or #rrggbb."}),
+        "img_compression": ("INT", {"default": GUIDE_DEFAULTS["img_compression"], "min": 0, "max": 100, "step": 1, "tooltip": "Native LTXV image compression applied before guide encoding. Set 0 to disable."}),
+        "global_strength": ("FLOAT", {"default": GUIDE_DEFAULTS["global_strength"], "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Multiplier applied to every manual guide strength and start sequence strength."}),
+    }
+    if include_start_strength:
+        settings["start_images_strength"] = ("FLOAT", {"default": GUIDE_DEFAULTS["start_images_strength"], "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Strength for the optional start image sequence before global_strength is applied."})
+    return settings
+
+
+def stage_input_types(include_guides_json=False, include_image_guides=False, include_settings=True):
     final_size_tip = "Target output size for this stage. With half_size_first_pass enabled and no latent connected, the internal latent uses half this value."
     required = {
         "positive": ("CONDITIONING", {"tooltip": "Positive conditioning to augment with native LTXV guide metadata."}),
@@ -13,16 +40,10 @@ def stage_input_types(include_guides_json=False, include_image_guides=False):
         "vae": ("VAE", {"tooltip": "LTXV VAE used to encode selected guide images and optional start image sequences."}),
         "width": ("INT", {"default": 768, "min": 64, "max": MAX_RESOLUTION, "step": 32, "tooltip": final_size_tip}),
         "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 32, "tooltip": final_size_tip}),
-        "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 240.0, "step": 0.01, "tooltip": "Frames per second used only when timing_mode is seconds."}),
-        "num_frames": ("INT", {"default": 97, "min": 1, "max": MAX_RESOLUTION, "step": 1, "tooltip": "Pixel frame count used for timing, negative frame positions, and internally-created empty latents."}),
-        "timing_mode": (["frame", "seconds"], {"default": "frame", "tooltip": "Interpret manual guide positions as frame indexes or seconds."}),
-        "resize_mode": (["contain", "pad", "stretch", "crop"], {"default": "contain", "tooltip": "How guide images are resized before VAE encoding. contain/pad preserves aspect ratio with padding."}),
-        "duplicate_policy": (["error", "keep_first", "keep_last", "offset_next"], {"default": "error", "tooltip": "How to handle manual guide images that resolve to the same frame."}),
-        "pad_color": ("STRING", {"default": "0,0,0", "tooltip": "RGB padding color for contain/pad resize mode. Accepts r,g,b or #rrggbb."}),
-        "img_compression": ("INT", {"default": 35, "min": 0, "max": 100, "step": 1, "tooltip": "Native LTXV image compression applied before guide encoding. Set 0 to disable."}),
         "half_size_first_pass": ("BOOLEAN", {"default": False, "tooltip": "For 2x LTX upscale workflows: when no latent is connected, create and guide a half-size first-pass latent. Width/height should be the final target size."}),
-        "global_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Multiplier applied to every manual guide strength and start sequence strength."}),
     }
+    if include_settings:
+        required.update(guide_settings_input_types(include_start_strength=True))
     if include_guides_json:
         required["guides_json"] = ("STRING", {"default": DEFAULT_GUIDES_JSON, "tooltip": "Hidden serialized guide data used by the custom UI and saved in workflows."})
     if include_image_guides:
@@ -32,9 +53,39 @@ def stage_input_types(include_guides_json=False, include_image_guides=False):
         "optional": {
             "latent": ("LATENT", {"tooltip": "Optional existing video latent. When connected, its shape is used and half_size_first_pass does not resize it."}),
             "start_images": ("IMAGE", {"tooltip": "Optional IMAGE batch from a video source. Applied as a native multi-frame guide starting at frame 0."}),
-            "start_images_strength": ("FLOAT", {"default": 0.85, "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Strength for the optional start image sequence before global_strength is applied."}),
         },
     }
+
+
+def guides_setting(guides_json, key):
+    try:
+        payload = parse_guides_json_payload(guides_json)
+    except Exception:
+        payload = {}
+    return payload.get(key, GUIDE_DEFAULTS[key])
+
+
+def parse_guides_json_payload(guides_json):
+    import json
+
+    if isinstance(guides_json, dict):
+        return guides_json
+    return json.loads(guides_json or DEFAULT_GUIDES_JSON)
+
+
+def build_guides_payload(guides_json, **settings):
+    import json
+
+    try:
+        payload = parse_guides_json_payload(guides_json)
+    except Exception:
+        payload = {"version": 1, "guides": []}
+    payload = dict(payload)
+    payload["version"] = payload.get("version", 1)
+    payload["guides"] = payload.get("guides", [])
+    for key, value in settings.items():
+        payload[key] = value
+    return json.dumps(payload)
 
 
 def run_apply_guides(
@@ -152,9 +203,7 @@ class LTX23ImageGuideManager:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "timing_mode": (["frame", "seconds"], {"default": "frame", "tooltip": "Interpret guide positions as frame indexes or seconds."}),
-                "fps": ("FLOAT", {"default": 24.0, "min": 1.0, "max": 240.0, "step": 0.01, "tooltip": "Frames per second used to preview seconds-based guide positions."}),
-                "num_frames": ("INT", {"default": 97, "min": 1, "max": MAX_RESOLUTION, "step": 1, "tooltip": "Frame count used to preview/clamp guide positions and negative frame indexes."}),
+                **guide_settings_input_types(include_start_strength=True),
                 "width": ("INT", {"default": 768, "min": 64, "max": MAX_RESOLUTION, "step": 32, "tooltip": "Preview target width used for aspect-ratio warnings."}),
                 "height": ("INT", {"default": 512, "min": 64, "max": MAX_RESOLUTION, "step": 32, "tooltip": "Preview target height used for aspect-ratio warnings."}),
                 "guides_json": ("STRING", {"default": DEFAULT_GUIDES_JSON, "tooltip": "Hidden serialized guide data used by the custom UI and saved in workflows."}),
@@ -174,14 +223,43 @@ class LTX23ImageGuideManager:
         except Exception:
             return guides_json
 
-    def run(self, timing_mode, fps, num_frames, width, height, guides_json):
-        return (guides_json,)
+    def run(
+        self,
+        fps,
+        num_frames,
+        timing_mode,
+        resize_mode,
+        duplicate_policy,
+        pad_color,
+        img_compression,
+        global_strength,
+        start_images_strength,
+        width,
+        height,
+        guides_json,
+    ):
+        return (
+            build_guides_payload(
+                guides_json,
+                fps=float(fps),
+                num_frames=int(num_frames),
+                timing_mode=timing_mode,
+                resize_mode=resize_mode,
+                duplicate_policy=duplicate_policy,
+                pad_color=pad_color,
+                img_compression=int(img_compression),
+                global_strength=float(global_strength),
+                start_images_strength=float(start_images_strength),
+                width=int(width),
+                height=int(height),
+            ),
+        )
 
 
 class LTX23ApplyImageGuides:
     @classmethod
     def INPUT_TYPES(cls):
-        return stage_input_types(include_image_guides=True)
+        return stage_input_types(include_image_guides=True, include_settings=False)
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING", "LATENT")
     RETURN_NAMES = ("positive", "negative", "latent")
@@ -203,19 +281,11 @@ class LTX23ApplyImageGuides:
         vae,
         width,
         height,
-        fps,
-        num_frames,
-        timing_mode,
-        resize_mode,
-        duplicate_policy,
-        pad_color,
-        img_compression,
         half_size_first_pass,
-        global_strength,
         image_guides,
         latent=None,
         start_images=None,
-        start_images_strength=0.85,
+        **_legacy_inputs,
     ):
         return run_apply_guides(
             positive,
@@ -223,19 +293,19 @@ class LTX23ApplyImageGuides:
             vae,
             width,
             height,
-            fps,
-            num_frames,
-            timing_mode,
-            resize_mode,
-            duplicate_policy,
-            pad_color,
-            img_compression,
+            guides_setting(image_guides, "fps"),
+            guides_setting(image_guides, "num_frames"),
+            guides_setting(image_guides, "timing_mode"),
+            guides_setting(image_guides, "resize_mode"),
+            guides_setting(image_guides, "duplicate_policy"),
+            guides_setting(image_guides, "pad_color"),
+            guides_setting(image_guides, "img_compression"),
             half_size_first_pass,
-            global_strength,
+            guides_setting(image_guides, "global_strength"),
             image_guides,
             latent,
             start_images,
-            start_images_strength,
+            guides_setting(image_guides, "start_images_strength"),
         )
 
 

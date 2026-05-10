@@ -41,8 +41,16 @@ def resolve_timing(guides, timing_mode, fps, num_frames, duplicate_policy):
 
 
 def create_empty_latent(width, height, num_frames):
+    num_frames = int(num_frames)
+    if (num_frames - 1) % 8 != 0:
+        lower = ((num_frames - 1) // 8) * 8 + 1
+        upper = lower + 8
+        raise ValueError(
+            f"Native LTXV frame count must be 8*n + 1. "
+            f"{num_frames} would create {lower} frames; use {lower} or {upper}."
+        )
     latent = torch.zeros(
-        [1, 128, ((int(num_frames) - 1) // 8) + 1, int(height) // 32, int(width) // 32],
+        [1, 128, ((num_frames - 1) // 8) + 1, int(height) // 32, int(width) // 32],
         device=comfy.model_management.intermediate_device(),
     )
     return {"samples": latent}

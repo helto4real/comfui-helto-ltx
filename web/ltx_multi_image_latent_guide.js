@@ -164,8 +164,15 @@ function setGuidesJson(node) {
     version: 1,
     timing_mode: getWidgetValue(node, "timing_mode", "frame"),
     fps: Number(getWidgetValue(node, "fps", 24)),
+    num_frames: Number(getWidgetValue(node, "num_frames", 97)),
     width: Number(getWidgetValue(node, "width", 768)),
     height: Number(getWidgetValue(node, "height", 512)),
+    resize_mode: getWidgetValue(node, "resize_mode", "contain"),
+    duplicate_policy: getWidgetValue(node, "duplicate_policy", "error"),
+    pad_color: getWidgetValue(node, "pad_color", "0,0,0"),
+    img_compression: Number(getWidgetValue(node, "img_compression", 35)),
+    global_strength: Number(getWidgetValue(node, "global_strength", 1)),
+    start_images_strength: Number(getWidgetValue(node, "start_images_strength", 0.85)),
     guides: node.properties.ltx23_guides || [],
   };
   if (widget) widget.value = JSON.stringify(payload);
@@ -607,7 +614,19 @@ function setupNode(node) {
     }
   });
 
-  for (const name of ["timing_mode", "fps", "num_frames", "width", "height"]) {
+  for (const name of [
+    "timing_mode",
+    "fps",
+    "num_frames",
+    "width",
+    "height",
+    "resize_mode",
+    "duplicate_policy",
+    "pad_color",
+    "img_compression",
+    "global_strength",
+    "start_images_strength",
+  ]) {
     const widget = getWidget(node, name);
     if (!widget) continue;
     const callback = widget.callback;
