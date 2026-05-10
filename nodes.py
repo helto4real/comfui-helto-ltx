@@ -13,6 +13,8 @@ GUIDE_DEFAULTS = {
     "img_compression": 35,
     "global_strength": 1.0,
     "start_images_strength": 0.85,
+    "lock_start_frames": False,
+    "lock_end_frame": False,
 }
 
 
@@ -26,6 +28,8 @@ def guide_settings_input_types(include_start_strength=True):
         "pad_color": ("STRING", {"default": GUIDE_DEFAULTS["pad_color"], "tooltip": "RGB padding color for contain/pad resize mode. Accepts r,g,b or #rrggbb."}),
         "img_compression": ("INT", {"default": GUIDE_DEFAULTS["img_compression"], "min": 0, "max": 100, "step": 1, "tooltip": "Native LTXV image compression applied before guide encoding. Set 0 to disable."}),
         "global_strength": ("FLOAT", {"default": GUIDE_DEFAULTS["global_strength"], "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Multiplier applied to every manual guide strength and start sequence strength."}),
+        "lock_start_frames": ("BOOLEAN", {"default": GUIDE_DEFAULTS["lock_start_frames"], "tooltip": "When enabled, frame 0 guides and start_images are written into the beginning video latent instead of only appended as guide references. VAE-level lock, not pixel-perfect copy."}),
+        "lock_end_frame": ("BOOLEAN", {"default": GUIDE_DEFAULTS["lock_end_frame"], "tooltip": "When enabled, a manual guide resolving to the final frame is written into the final video latent instead of only appended as a guide reference. VAE-level lock, not pixel-perfect copy."}),
     }
     if include_start_strength:
         settings["start_images_strength"] = ("FLOAT", {"default": GUIDE_DEFAULTS["start_images_strength"], "min": 0.0, "max": 1.0, "step": 0.01, "tooltip": "Strength for the optional start image sequence before global_strength is applied."})
@@ -73,6 +77,14 @@ def parse_guides_json_payload(guides_json):
     return json.loads(guides_json or DEFAULT_GUIDES_JSON)
 
 
+def coerce_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def build_guides_payload(guides_json, **settings):
     import json
 
@@ -107,6 +119,8 @@ def run_apply_guides(
     latent=None,
     start_images=None,
     start_images_strength=0.85,
+    lock_start_frames=False,
+    lock_end_frame=False,
 ):
     if resize_mode == "pad":
         resize_mode = "contain"
@@ -133,6 +147,8 @@ def run_apply_guides(
         latent=latent,
         start_images=start_images,
         start_images_strength=start_images_strength,
+        lock_start_frames=coerce_bool(lock_start_frames),
+        lock_end_frame=coerce_bool(lock_end_frame),
     )
 
 
@@ -175,6 +191,8 @@ class LTX23MultiImageLatentGuide:
         latent=None,
         start_images=None,
         start_images_strength=0.85,
+        lock_start_frames=False,
+        lock_end_frame=False,
     ):
         return run_apply_guides(
             positive,
@@ -195,6 +213,8 @@ class LTX23MultiImageLatentGuide:
             latent,
             start_images,
             start_images_strength,
+            lock_start_frames,
+            lock_end_frame,
         )
 
 
@@ -233,6 +253,8 @@ class LTX23ImageGuideManager:
         pad_color,
         img_compression,
         global_strength,
+        lock_start_frames,
+        lock_end_frame,
         start_images_strength,
         width,
         height,
@@ -249,6 +271,8 @@ class LTX23ImageGuideManager:
                 pad_color=pad_color,
                 img_compression=int(img_compression),
                 global_strength=float(global_strength),
+                lock_start_frames=coerce_bool(lock_start_frames),
+                lock_end_frame=coerce_bool(lock_end_frame),
                 start_images_strength=float(start_images_strength),
                 width=int(width),
                 height=int(height),
@@ -306,6 +330,8 @@ class LTX23ApplyImageGuides:
             latent,
             start_images,
             guides_setting(image_guides, "start_images_strength"),
+            guides_setting(image_guides, "lock_start_frames"),
+            guides_setting(image_guides, "lock_end_frame"),
         )
 
 

@@ -115,6 +115,29 @@ def append_native_guide(
     return positive, negative, latent_image, noise_mask
 
 
+def replace_latent_frames(latent_image, noise_mask, vae, images, latent_idx, strength, scale_factors, label):
+    _, _, _, latent_height, latent_width = latent_image.shape
+    _, encoded = nodes_lt.LTXVAddGuide.encode(vae, latent_width, latent_height, images, scale_factors)
+    latent_idx = max(0, min(int(latent_idx), latent_image.shape[2] - 1))
+    end_idx = min(latent_idx + encoded.shape[2], latent_image.shape[2])
+    replace_len = end_idx - latent_idx
+    if replace_len <= 0:
+        raise ValueError(f"Locked guide {label} does not fit inside the latent.")
+
+    channel_count = min(latent_image.shape[1], encoded.shape[1])
+    latent_image = latent_image.clone()
+    noise_mask = noise_mask.clone()
+    latent_image[:, :channel_count, latent_idx:end_idx] = encoded[:, :channel_count, :replace_len]
+    mask = torch.full(
+        (noise_mask.shape[0], 1, replace_len, noise_mask.shape[3], noise_mask.shape[4]),
+        1.0 - strength,
+        dtype=noise_mask.dtype,
+        device=noise_mask.device,
+    )
+    noise_mask[:, :, latent_idx:end_idx] = mask
+    return latent_image, noise_mask
+
+
 def apply_guides(
     positive,
     negative,
@@ -134,6 +157,8 @@ def apply_guides(
     latent=None,
     start_images=None,
     start_images_strength=0.85,
+    lock_start_frames=False,
+    lock_end_frame=False,
 ):
     guides = parse_guides_json(guides_json)
 
@@ -154,6 +179,7 @@ def apply_guides(
     noise_mask = nodes_lt.get_noise_mask(latent)
     _, _, latent_length, latent_height, latent_width = latent_image.shape
     effective_num_frames = (latent_length - 1) * scale_factors[0] + 1
+    final_frame_idx = effective_num_frames - 1
     resolved = resolve_timing(guides, timing_mode, float(fps), effective_num_frames, duplicate_policy)
     start_sequence_applied = False
 
@@ -169,20 +195,32 @@ def apply_guides(
 
         sequence = resize_tensor_images(start_images, width, height, resize_mode, pad_color)
         sequence = sequence.to(device=latent_image.device, dtype=torch.float32)
-        sequence = preprocess_guide_image(sequence, img_compression)
         sequence_strength = max(0.0, min(1.0, float(global_strength) * float(start_images_strength)))
-        positive, negative, latent_image, noise_mask = append_native_guide(
-            positive=positive,
-            negative=negative,
-            latent_image=latent_image,
-            noise_mask=noise_mask,
-            vae=vae,
-            images=sequence,
-            frame_idx=0,
-            strength=sequence_strength,
-            scale_factors=scale_factors,
-            label="start image sequence",
-        )
+        if lock_start_frames:
+            latent_image, noise_mask = replace_latent_frames(
+                latent_image=latent_image,
+                noise_mask=noise_mask,
+                vae=vae,
+                images=sequence,
+                latent_idx=0,
+                strength=sequence_strength,
+                scale_factors=scale_factors,
+                label="start image sequence",
+            )
+        else:
+            sequence = preprocess_guide_image(sequence, img_compression)
+            positive, negative, latent_image, noise_mask = append_native_guide(
+                positive=positive,
+                negative=negative,
+                latent_image=latent_image,
+                noise_mask=noise_mask,
+                vae=vae,
+                images=sequence,
+                frame_idx=0,
+                strength=sequence_strength,
+                scale_factors=scale_factors,
+                label="start image sequence",
+            )
         start_sequence_applied = True
 
     if not resolved:
@@ -194,8 +232,33 @@ def apply_guides(
         image_path = resolve_image_path(guide.folder_alias, guide.filename)
         image, _ = load_guide_tensor(image_path, width, height, resize_mode, pad_color)
         image = image.to(device=latent_image.device, dtype=torch.float32)
-        image = preprocess_guide_image(image, img_compression)
         strength = max(0.0, min(1.0, float(global_strength) * float(guide.strength)))
+        if lock_start_frames and frame_idx == 0:
+            latent_image, noise_mask = replace_latent_frames(
+                latent_image=latent_image,
+                noise_mask=noise_mask,
+                vae=vae,
+                images=image,
+                latent_idx=0,
+                strength=strength,
+                scale_factors=scale_factors,
+                label=guide.filename,
+            )
+            continue
+        if lock_end_frame and frame_idx == final_frame_idx:
+            latent_image, noise_mask = replace_latent_frames(
+                latent_image=latent_image,
+                noise_mask=noise_mask,
+                vae=vae,
+                images=image,
+                latent_idx=latent_length - 1,
+                strength=strength,
+                scale_factors=scale_factors,
+                label=guide.filename,
+            )
+            continue
+
+        image = preprocess_guide_image(image, img_compression)
         positive, negative, latent_image, noise_mask = append_native_guide(
             positive=positive,
             negative=negative,

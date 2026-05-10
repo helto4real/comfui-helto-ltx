@@ -101,6 +101,13 @@ function getWidgetValue(node, name, fallback) {
   return widget ? widget.value : fallback;
 }
 
+function getBooleanWidgetValue(node, name, fallback = false) {
+  const value = getWidgetValue(node, name, fallback);
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true";
+  return Boolean(value);
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -269,6 +276,8 @@ function setGuidesJson(node) {
     pad_color: getWidgetValue(node, "pad_color", "0,0,0"),
     img_compression: Number(getWidgetValue(node, "img_compression", 35)),
     global_strength: Number(getWidgetValue(node, "global_strength", 1)),
+    lock_start_frames: getBooleanWidgetValue(node, "lock_start_frames", false),
+    lock_end_frame: getBooleanWidgetValue(node, "lock_end_frame", false),
     start_images_strength: Number(getWidgetValue(node, "start_images_strength", 0.85)),
     guides: node.properties.ltx23_guides || [],
   };
@@ -725,6 +734,8 @@ function setupNode(node) {
     "pad_color",
     "img_compression",
     "global_strength",
+    "lock_start_frames",
+    "lock_end_frame",
     "start_images_strength",
   ]) {
     const widget = getWidget(node, name);

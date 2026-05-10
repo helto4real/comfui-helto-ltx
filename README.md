@@ -109,6 +109,8 @@ duplicate_policy
 pad_color
 img_compression
 global_strength
+lock_start_frames
+lock_end_frame
 start_images_strength
 ```
 
@@ -140,6 +142,8 @@ pad_color: STRING
 img_compression: INT
 half_size_first_pass: BOOLEAN
 global_strength: FLOAT
+lock_start_frames: BOOLEAN
+lock_end_frame: BOOLEAN
 guides_json: hidden STRING
 latent: optional LATENT
 start_images: optional IMAGE
@@ -174,6 +178,8 @@ duplicate_policy: error | keep_first | keep_last | offset_next
 pad_color: STRING
 img_compression: INT
 global_strength: FLOAT
+lock_start_frames: BOOLEAN
+lock_end_frame: BOOLEAN
 start_images_strength: FLOAT
 width: INT
 height: INT
@@ -429,12 +435,41 @@ native LTXV cropping is used for valid 8*n + 1 guide length
 Manual guide images may still be added later in the timeline, for example an
 ending image at `-1`.
 
+When `lock_start_frames` is enabled, `start_images` are written into the
+beginning of the video latent instead of being appended as guide references.
+This is stronger first-frame/sequence initialization, but still passes through
+resize and VAE encode/decode, so it is not a pixel-perfect copy.
+
 If a manual guide resolves to a frame covered by the start image sequence, the
 node raises an error such as:
 
 ```text
 Manual guide ending.png at frame 0 overlaps the start image sequence.
 ```
+
+## Locked Start and End Frames
+
+Normal manual guides at frame `0` or `-1` use native `LTXVAddGuide` behavior:
+they are guide references, not hard frame replacements.
+
+Optional lock settings provide stronger latent initialization:
+
+```text
+lock_start_frames:
+  writes a manual frame 0 guide or start_images sequence into the beginning
+  video latent
+
+lock_end_frame:
+  writes a manual final-frame guide, including -1, into the final video latent
+```
+
+Locked frames are VAE-level latent replacement after resize/pad/crop. They are
+not pixel-perfect copies of the source image after decode, but they should hold
+the beginning or ending image more strongly than guide-only conditioning.
+
+`img_compression` is not applied to locked latent insertion because compression
+would make the locked frame less faithful. It still applies to normal appended
+guide references.
 
 ## Image Resizing
 
