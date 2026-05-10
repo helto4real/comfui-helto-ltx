@@ -10,9 +10,10 @@ function injectStyles() {
   style.textContent = `
     .ltx23-guide-root { box-sizing: border-box; font: 12px Arial, sans-serif; color: #ddd; width: 100%; max-width: 100%; overflow: hidden; }
     .ltx23-guide-root * { box-sizing: border-box; }
-    .ltx23-guide-summary { display: block; width: 100%; min-width: 0; padding: 6px 8px; border: 1px solid #444; background: #202020; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .ltx23-guide-toolbar { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+    .ltx23-guide-toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
     .ltx23-guide-toolbar button, .ltx23-guide-row button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; cursor: pointer; }
+    .ltx23-guide-toolbar button { width: 28px; height: 28px; padding: 2px; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+    .ltx23-guide-toolbar svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .ltx23-guide-toolbar button:hover, .ltx23-guide-row button:hover { background: #444; }
     .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 130px; overflow: hidden auto; border: 1px solid #333; border-radius: 4px; }
     .ltx23-guide-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px 48px 26px 26px 28px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid #2d2d2d; }
@@ -63,7 +64,7 @@ function guideWidgetHeight(node) {
   const rowHeight = 30;
   const visibleRows = Math.min(rowCount, 5);
   const listHeight = visibleRows > 0 ? visibleRows * rowHeight + 2 : 0;
-  return 112 + listHeight;
+  return 76 + listHeight;
 }
 
 function updateNodeHeight(node) {
@@ -153,7 +154,6 @@ function timelineText(node) {
 }
 
 function updateSummary(node) {
-  if (node._ltx23?.summary) node._ltx23.summary.textContent = timelineText(node);
   node.title = "LTX 2.3 Multi Image Latent Guide";
 }
 
@@ -400,14 +400,25 @@ function setupNode(node) {
   const container = document.createElement("div");
   container.className = "ltx23-guide-root";
   container.innerHTML = `
-    <div class="ltx23-guide-summary"></div>
     <div class="ltx23-guide-toolbar">
-      <button data-action="add">Add</button>
-      <button data-action="folder-add">Add Folder</button>
-      <button data-action="folder-remove">Remove Folder</button>
-      <button data-action="refresh">Refresh</button>
-      <button data-action="save">Save Set</button>
-      <button data-action="load">Load Set</button>
+      <button data-action="add" title="Add guide image" aria-label="Add guide image">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+      </button>
+      <button data-action="folder-add" title="Add folder" aria-label="Add folder">
+        <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 14h6"/><path d="M15 11v6"/></svg>
+      </button>
+      <button data-action="folder-remove" title="Remove folder" aria-label="Remove folder">
+        <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 14h6"/></svg>
+      </button>
+      <button data-action="refresh" title="Refresh folders and images" aria-label="Refresh folders and images">
+        <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-13.7 5.7"/><path d="M4 12A8 8 0 0 1 17.7 6.3"/><path d="M7 18H3v-4"/><path d="M17 6h4v4"/></svg>
+      </button>
+      <button data-action="save" title="Save guide set" aria-label="Save guide set">
+        <svg viewBox="0 0 24 24"><path d="M5 3h12l2 2v16H5z"/><path d="M8 3v6h8V3"/><path d="M8 21v-7h8v7"/></svg>
+      </button>
+      <button data-action="load" title="Load guide set" aria-label="Load guide set">
+        <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 15h6"/><path d="M15 12l3 3-3 3"/></svg>
+      </button>
     </div>
     <div class="ltx23-guide-list"></div>`;
   const guideWidget = node.addDOMWidget("guide_manager", "div", container, { serialize: false });
@@ -416,7 +427,6 @@ function setupNode(node) {
   node._ltx23 = {
     container,
     widget: guideWidget,
-    summary: container.querySelector(".ltx23-guide-summary"),
     list: container.querySelector(".ltx23-guide-list"),
   };
   setupPreview(node, container);
