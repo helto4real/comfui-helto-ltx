@@ -122,9 +122,10 @@ function readGuides(node) {
 function calcFrame(node, guide) {
   const timingMode = getWidgetValue(node, "timing_mode", "frame");
   const fps = Number(getWidgetValue(node, "fps", 24));
-  const numFrames = Number(getWidgetValue(node, "num_frames", 97));
+  const numFrames = Math.max(1, Number(getWidgetValue(node, "num_frames", 97)));
   const raw = Number(guide.position || 0);
-  const frame = timingMode === "seconds" ? Math.round(raw * fps) : Math.round(raw);
+  let frame = timingMode === "seconds" ? Math.round(raw * fps) : Math.round(raw);
+  if (frame < 0) frame = numFrames + frame;
   return Math.max(0, Math.min(numFrames - 1, frame));
 }
 

@@ -11,11 +11,14 @@ from .image_io import load_guide_tensor
 def resolve_timing(guides, timing_mode, fps, num_frames, duplicate_policy):
     resolved = []
     occupied = {}
+    num_frames = max(1, int(num_frames))
     for index, guide in enumerate(guides):
         if not guide.enabled:
             continue
         frame = round(guide.position * fps) if timing_mode == "seconds" else int(round(guide.position))
-        frame = max(0, min(int(num_frames) - 1, frame))
+        if frame < 0:
+            frame = num_frames + frame
+        frame = max(0, min(num_frames - 1, frame))
         if frame in occupied:
             if duplicate_policy == "error":
                 raise ValueError(f"Duplicate guide frame {frame}: {guide.filename}")
@@ -62,7 +65,6 @@ def apply_guides(
     latent=None,
 ):
     guides = parse_guides_json(guides_json)
-    resolved = resolve_timing(guides, timing_mode, float(fps), int(num_frames), duplicate_policy)
 
     if latent is None:
         latent = create_empty_latent(width, height, num_frames)
@@ -73,13 +75,15 @@ def apply_guides(
             "noise_mask": latent.get("noise_mask", None).clone() if latent.get("noise_mask", None) is not None else None,
         }
 
-    if not resolved:
-        return positive, negative, latent
-
     scale_factors = vae.downscale_index_formula
     latent_image = latent["samples"]
     noise_mask = nodes_lt.get_noise_mask(latent)
     _, _, latent_length, latent_height, latent_width = latent_image.shape
+    effective_num_frames = (latent_length - 1) * scale_factors[0] + 1
+    resolved = resolve_timing(guides, timing_mode, float(fps), effective_num_frames, duplicate_policy)
+
+    if not resolved:
+        return positive, negative, latent
 
     for frame_idx, guide in resolved:
         image_path = resolve_image_path(guide.folder_alias, guide.filename)
