@@ -5,7 +5,7 @@ import comfy_extras.nodes_lt as nodes_lt
 
 from .config_store import resolve_image_path
 from .guide_models import parse_guides_json
-from .image_io import load_guide_tensor
+from .image_io import load_guide_tensor, resize_tensor_images
 
 
 def resolve_timing(guides, timing_mode, fps, num_frames, duplicate_policy):
@@ -55,6 +55,54 @@ def preprocess_guide_image(image, img_compression):
     return torch.stack([nodes_lt.preprocess(frame, img_compression) for frame in image])
 
 
+def native_cropped_frame_count(image_count, scale_factors):
+    time_scale_factor = int(scale_factors[0])
+    return ((int(image_count) - 1) // time_scale_factor) * time_scale_factor + 1
+
+
+def append_native_guide(
+    positive,
+    negative,
+    latent_image,
+    noise_mask,
+    vae,
+    images,
+    frame_idx,
+    strength,
+    scale_factors,
+    label,
+):
+    _, _, latent_length, latent_height, latent_width = latent_image.shape
+    _, encoded = nodes_lt.LTXVAddGuide.encode(vae, latent_width, latent_height, images, scale_factors)
+    frame_idx, latent_idx = nodes_lt.LTXVAddGuide.get_latent_index(
+        positive, latent_length, len(images), frame_idx, scale_factors
+    )
+    if latent_idx + encoded.shape[2] > latent_length:
+        raise ValueError(f"Guide {label} exceeds latent length at frame {frame_idx}.")
+
+    positive, negative, latent_image, noise_mask = nodes_lt.LTXVAddGuide.append_keyframe(
+        positive=positive,
+        negative=negative,
+        frame_idx=frame_idx,
+        latent_image=latent_image,
+        noise_mask=noise_mask,
+        guiding_latent=encoded,
+        strength=strength,
+        scale_factors=scale_factors,
+    )
+
+    if hasattr(nodes_lt, "_append_guide_attention_entry"):
+        pre_filter_count = encoded.shape[2] * encoded.shape[3] * encoded.shape[4]
+        positive, negative = nodes_lt._append_guide_attention_entry(
+            positive,
+            negative,
+            pre_filter_count,
+            list(encoded.shape[2:]),
+            strength=strength,
+        )
+    return positive, negative, latent_image, noise_mask
+
+
 def apply_guides(
     positive,
     negative,
@@ -71,6 +119,8 @@ def apply_guides(
     global_strength,
     guides_json,
     latent=None,
+    start_images=None,
+    start_images_strength=0.85,
 ):
     guides = parse_guides_json(guides_json)
 
@@ -89,43 +139,58 @@ def apply_guides(
     _, _, latent_length, latent_height, latent_width = latent_image.shape
     effective_num_frames = (latent_length - 1) * scale_factors[0] + 1
     resolved = resolve_timing(guides, timing_mode, float(fps), effective_num_frames, duplicate_policy)
+    start_sequence_applied = False
+
+    if start_images is not None:
+        if start_images.shape[0] <= 0:
+            raise ValueError("Start image sequence is empty.")
+        sequence_frame_count = native_cropped_frame_count(start_images.shape[0], scale_factors)
+        for frame_idx, guide in resolved:
+            if frame_idx < sequence_frame_count:
+                raise ValueError(
+                    f"Manual guide {guide.filename} at frame {frame_idx} overlaps the start image sequence."
+                )
+
+        sequence = resize_tensor_images(start_images, width, height, resize_mode, pad_color)
+        sequence = sequence.to(device=latent_image.device, dtype=torch.float32)
+        sequence = preprocess_guide_image(sequence, img_compression)
+        sequence_strength = max(0.0, min(1.0, float(global_strength) * float(start_images_strength)))
+        positive, negative, latent_image, noise_mask = append_native_guide(
+            positive=positive,
+            negative=negative,
+            latent_image=latent_image,
+            noise_mask=noise_mask,
+            vae=vae,
+            images=sequence,
+            frame_idx=0,
+            strength=sequence_strength,
+            scale_factors=scale_factors,
+            label="start image sequence",
+        )
+        start_sequence_applied = True
 
     if not resolved:
-        return positive, negative, latent
+        if not start_sequence_applied:
+            return positive, negative, latent
+        return positive, negative, {"samples": latent_image, "noise_mask": noise_mask}
 
     for frame_idx, guide in resolved:
         image_path = resolve_image_path(guide.folder_alias, guide.filename)
         image, _ = load_guide_tensor(image_path, width, height, resize_mode, pad_color)
         image = image.to(device=latent_image.device, dtype=torch.float32)
         image = preprocess_guide_image(image, img_compression)
-        _, encoded = nodes_lt.LTXVAddGuide.encode(vae, latent_width, latent_height, image, scale_factors)
-
-        frame_idx, latent_idx = nodes_lt.LTXVAddGuide.get_latent_index(
-            positive, latent_length, len(image), frame_idx, scale_factors
-        )
-        if latent_idx + encoded.shape[2] > latent_length:
-            raise ValueError(f"Guide {guide.filename} exceeds latent length at frame {frame_idx}.")
-
         strength = max(0.0, min(1.0, float(global_strength) * float(guide.strength)))
-        positive, negative, latent_image, noise_mask = nodes_lt.LTXVAddGuide.append_keyframe(
+        positive, negative, latent_image, noise_mask = append_native_guide(
             positive=positive,
             negative=negative,
-            frame_idx=frame_idx,
             latent_image=latent_image,
             noise_mask=noise_mask,
-            guiding_latent=encoded,
+            vae=vae,
+            images=image,
+            frame_idx=frame_idx,
             strength=strength,
             scale_factors=scale_factors,
+            label=guide.filename,
         )
-
-        if hasattr(nodes_lt, "_append_guide_attention_entry"):
-            pre_filter_count = encoded.shape[2] * encoded.shape[3] * encoded.shape[4]
-            positive, negative = nodes_lt._append_guide_attention_entry(
-                positive,
-                negative,
-                pre_filter_count,
-                list(encoded.shape[2:]),
-                strength=strength,
-            )
 
     return positive, negative, {"samples": latent_image, "noise_mask": noise_mask}

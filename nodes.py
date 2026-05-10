@@ -26,6 +26,8 @@ class LTX23MultiImageLatentGuide:
             },
             "optional": {
                 "latent": ("LATENT",),
+                "start_images": ("IMAGE",),
+                "start_images_strength": ("FLOAT", {"default": 0.85, "min": 0.0, "max": 1.0, "step": 0.01}),
             },
         }
 
@@ -60,6 +62,8 @@ class LTX23MultiImageLatentGuide:
         global_strength,
         guides_json,
         latent=None,
+        start_images=None,
+        start_images_strength=0.85,
     ):
         if resize_mode == "pad":
             resize_mode = "contain"
@@ -83,6 +87,8 @@ class LTX23MultiImageLatentGuide:
             global_strength=global_strength,
             guides_json=guides_json,
             latent=latent,
+            start_images=start_images,
+            start_images_strength=start_images_strength,
         )
 
 

@@ -63,6 +63,23 @@ def image_to_tensor(image):
     return torch.from_numpy(array).unsqueeze(0)
 
 
+def tensor_to_image(tensor):
+    array = tensor[:, :, :3].detach().cpu().numpy()
+    array = np.clip(array * 255.0, 0, 255).astype(np.uint8)
+    return Image.fromarray(array, mode="RGB")
+
+
+def resize_tensor_images(images, width, height, resize_mode, pad_color):
+    frames = []
+    for frame in images:
+        image = tensor_to_image(frame)
+        resized = resize_image(image, width, height, resize_mode, pad_color)
+        frames.append(image_to_tensor(resized)[0])
+    if not frames:
+        raise ValueError("Start image sequence is empty.")
+    return torch.stack(frames)
+
+
 def load_guide_tensor(path, width, height, resize_mode, pad_color):
     image = load_rgb_image(path)
     original_size = image.size
