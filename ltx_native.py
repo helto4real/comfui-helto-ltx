@@ -48,6 +48,13 @@ def create_empty_latent(width, height, num_frames):
     return {"samples": latent}
 
 
+def preprocess_guide_image(image, img_compression):
+    img_compression = int(img_compression)
+    if img_compression <= 0:
+        return image
+    return torch.stack([nodes_lt.preprocess(frame, img_compression) for frame in image])
+
+
 def apply_guides(
     positive,
     negative,
@@ -60,6 +67,7 @@ def apply_guides(
     resize_mode,
     duplicate_policy,
     pad_color,
+    img_compression,
     global_strength,
     guides_json,
     latent=None,
@@ -89,6 +97,7 @@ def apply_guides(
         image_path = resolve_image_path(guide.folder_alias, guide.filename)
         image, _ = load_guide_tensor(image_path, width, height, resize_mode, pad_color)
         image = image.to(device=latent_image.device, dtype=torch.float32)
+        image = preprocess_guide_image(image, img_compression)
         _, encoded = nodes_lt.LTXVAddGuide.encode(vae, latent_width, latent_height, image, scale_factors)
 
         frame_idx, latent_idx = nodes_lt.LTXVAddGuide.get_latent_index(
