@@ -4,6 +4,17 @@ import { api } from "../../scripts/api.js";
 const NODE_NAME = "LTX23MultiImageLatentGuide";
 const MANAGER_NODE_NAME = "LTX23ImageGuideManager";
 const GUIDE_ROW_HEIGHT = 34;
+const NODE_TITLES = {
+  [NODE_NAME]: "LTX 2.3 Image Guides (All-in-One)",
+  [MANAGER_NODE_NAME]: "LTX 2.3 Image Guide Manager",
+};
+const MANAGED_TITLES = new Set([
+  "LTX 2.3 Multi Image Latent Guide",
+  "LTX 2.3 Image Guides (All-in-One)",
+  "LTX 2.3 Image Guide Manager",
+  NODE_NAME,
+  MANAGER_NODE_NAME,
+]);
 
 function injectStyles() {
   if (document.getElementById("ltx23-guide-styles")) return;
@@ -216,7 +227,9 @@ function timelineText(node) {
 }
 
 function updateSummary(node) {
-  node.title = "LTX 2.3 Multi Image Latent Guide";
+  const nodeClass = node.comfyClass || node.type;
+  const title = NODE_TITLES[nodeClass];
+  if (title && (!node.title || MANAGED_TITLES.has(node.title))) node.title = title;
 }
 
 async function fetchJson(url, options) {

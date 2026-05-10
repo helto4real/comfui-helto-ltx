@@ -145,7 +145,7 @@ class LTX23MultiImageLatentGuide:
     RETURN_NAMES = ("positive", "negative", "latent")
     FUNCTION = "run"
     CATEGORY = "LTX 2.3"
-    DESCRIPTION = "Manage multiple image guides for native LTXV keyframe/latent guide workflows."
+    DESCRIPTION = "All-in-one native LTXV guide node: select images, apply guide metadata, and output guided conditioning plus latent."
 
     @classmethod
     def IS_CHANGED(cls, guides_json, **kwargs):
@@ -214,7 +214,7 @@ class LTX23ImageGuideManager:
     RETURN_NAMES = ("image_guides",)
     FUNCTION = "run"
     CATEGORY = "LTX 2.3"
-    DESCRIPTION = "Select reusable LTX 2.3 image guides once and feed them into one or more apply nodes."
+    DESCRIPTION = "Build a reusable LTX 2.3 image guide set and shared timing/strength settings for one or more apply nodes."
 
     @classmethod
     def IS_CHANGED(cls, guides_json, **kwargs):
@@ -265,7 +265,7 @@ class LTX23ApplyImageGuides:
     RETURN_NAMES = ("positive", "negative", "latent")
     FUNCTION = "run"
     CATEGORY = "LTX 2.3"
-    DESCRIPTION = "Apply reusable LTX 2.3 image guides to the current sampler stage."
+    DESCRIPTION = "Apply an IMAGE_GUIDES payload to one sampler stage, using this stage's width, height, latent, and half-size setting."
 
     @classmethod
     def IS_CHANGED(cls, image_guides, **kwargs):
@@ -316,7 +316,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "LTX23MultiImageLatentGuide": "LTX 2.3 Multi Image Latent Guide",
+    "LTX23MultiImageLatentGuide": "LTX 2.3 Image Guides (All-in-One)",
     "LTX23ImageGuideManager": "LTX 2.3 Image Guide Manager",
     "LTX23ApplyImageGuides": "LTX 2.3 Apply Image Guides",
 }
