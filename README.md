@@ -257,6 +257,11 @@ remove
 Image previews are hidden by default. Hover over an image name in the guide list
 to show the preview panel.
 
+The embedded guide UI follows the node's current ComfyUI color. Toolbar buttons,
+guide rows, and row inputs are color-matched to the node body while preserving
+readable text and icons. Floating dialogs and image previews intentionally stay
+neutral so thumbnails remain easy to inspect.
+
 When adding guide images, the image browser supports:
 
 ```text
@@ -470,6 +475,9 @@ the beginning or ending image more strongly than guide-only conditioning.
 `img_compression` is not applied to locked latent insertion because compression
 would make the locked frame less faithful. It still applies to normal appended
 guide references.
+
+If `lock_start_frames` or `lock_end_frame` is disabled, frame `0` and final-frame
+manual guides continue to use normal native `LTXVAddGuide` behavior.
 
 ## Image Resizing
 
