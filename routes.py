@@ -6,6 +6,7 @@ from aiohttp import web
 import server
 
 from .config_store import (
+    IMAGE_EXTENSIONS,
     add_folder,
     folder_by_alias,
     guide_set_path,
@@ -94,6 +95,25 @@ async def get_thumb(request):
             return web.Response(status=404, text="Image not found")
         thumb = make_thumbnail(path)
         return web.FileResponse(thumb, headers={"Cache-Control": "public, max-age=86400", "Content-Type": "image/webp"})
+    except Exception as exc:
+        return web.json_response({"error": str(exc)}, status=400)
+
+
+@server.PromptServer.instance.routes.get("/ltx23_guides/image")
+async def get_image(request):
+    try:
+        alias = request.query.get("alias", "")
+        filename = urllib.parse.unquote(request.query.get("filename", ""))
+        folder = folder_by_alias(alias)
+        root = os.path.realpath(folder.path)
+        path = os.path.realpath(os.path.join(root, filename))
+        if root != path and not path.startswith(root + os.sep):
+            return web.Response(status=403, text="Invalid path")
+        if os.path.splitext(path)[1].lower() not in IMAGE_EXTENSIONS:
+            return web.Response(status=400, text="Unsupported image type")
+        if not os.path.isfile(path):
+            return web.Response(status=404, text="Image not found")
+        return web.FileResponse(path, headers={"Cache-Control": "private, max-age=300"})
     except Exception as exc:
         return web.json_response({"error": str(exc)}, status=400)
 

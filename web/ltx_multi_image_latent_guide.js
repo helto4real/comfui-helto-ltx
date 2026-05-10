@@ -53,6 +53,12 @@ function injectStyles() {
     .ltx23-guide-tile.selected { border-color: #8ab4f8; background: #202a36; }
     .ltx23-guide-tile img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: contain; background: #101010; border: 1px solid #2d2d2d; border-radius: 3px; transition: opacity .12s ease; }
     .ltx23-guide-browser-meta { margin-top: 8px; color: #aaa; font-size: 11px; min-height: 14px; }
+    .ltx23-guide-large-preview { position: fixed; z-index: 10003; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.72); padding: 24px; }
+    .ltx23-guide-large-preview-panel { position: relative; max-width: 92vw; max-height: 92vh; background: #151515; border: 1px solid #555; border-radius: 6px; padding: 10px; box-shadow: 0 12px 44px rgba(0,0,0,.55); }
+    .ltx23-guide-large-preview-panel img { display: block; max-width: calc(92vw - 20px); max-height: calc(92vh - 52px); object-fit: contain; background: #0b0b0b; }
+    .ltx23-guide-large-preview-close { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; background: rgba(20,20,20,.88); color: #ddd; border: 1px solid #666; border-radius: 4px; cursor: pointer; }
+    .ltx23-guide-large-preview-close svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .ltx23-guide-large-preview-caption { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: calc(92vw - 20px); margin-top: 7px; color: #aaa; font-size: 12px; }
   `;
   document.head.appendChild(style);
 }
@@ -213,7 +219,31 @@ async function fetchJson(url, options) {
 }
 
 function closeDialog() {
+  closeLargePreview();
   document.querySelector(".ltx23-guide-dialog")?.remove();
+}
+
+function closeLargePreview() {
+  document.querySelector(".ltx23-guide-large-preview")?.remove();
+}
+
+function showLargePreview(alias, image) {
+  closeLargePreview();
+  const overlay = document.createElement("div");
+  overlay.className = "ltx23-guide-large-preview";
+  const imageUrl = `/ltx23_guides/image?alias=${encodeURIComponent(alias)}&filename=${encodeURIComponent(image.filename)}&t=${encodeURIComponent(image.mtime || 0)}`;
+  overlay.innerHTML = `
+    <div class="ltx23-guide-large-preview-panel">
+      <button class="ltx23-guide-large-preview-close" type="button" title="Close preview" aria-label="Close preview">
+        <svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+      </button>
+      <img src="${escapeHtml(imageUrl)}" alt="">
+      <div class="ltx23-guide-large-preview-caption">${escapeHtml(image.filename)} (${image.width || "?"}x${image.height || "?"})</div>
+    </div>`;
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay || event.target.closest(".ltx23-guide-large-preview-close")) closeLargePreview();
+  });
+  document.body.appendChild(overlay);
 }
 
 function showDialog(title, body, onOk) {
@@ -308,7 +338,11 @@ async function chooseGuide(node) {
       tile.title = image.filename;
       tile.innerHTML = `
         <img src="${escapeHtml(image.thumb_url)}" alt="">`;
-      tile.addEventListener("click", () => {
+      tile.addEventListener("click", (event) => {
+        if (event.ctrlKey) {
+          showLargePreview(folderSelect.value, image);
+          return;
+        }
         selectedImage = image;
         for (const other of grid.querySelectorAll(".ltx23-guide-tile")) other.classList.remove("selected");
         tile.classList.add("selected");
