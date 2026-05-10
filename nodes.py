@@ -21,7 +21,7 @@ class LTX23MultiImageLatentGuide:
                 "duplicate_policy": (["error", "keep_first", "keep_last", "offset_next"], {"default": "error"}),
                 "pad_color": ("STRING", {"default": "0,0,0"}),
                 "global_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "guides_json": ("STRING", {"default": "{\"version\":1,\"guides\":[]}", "multiline": True}),
+                "guides_json": ("STRING", {"default": "{\"version\":1,\"guides\":[]}"}),
             },
             "optional": {
                 "latent": ("LATENT",),

@@ -8,7 +8,7 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "ltx23-guide-styles";
   style.textContent = `
-    .ltx23-guide-root { box-sizing: border-box; font: 12px Arial, sans-serif; color: #ddd; width: 100%; max-width: 100%; overflow: hidden; }
+    .ltx23-guide-root { box-sizing: border-box; font: 12px Arial, sans-serif; color: #ddd; width: 100%; max-width: 100%; overflow: hidden; background: #333; }
     .ltx23-guide-root * { box-sizing: border-box; }
     .ltx23-guide-toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
     .ltx23-guide-toolbar button, .ltx23-guide-row button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; cursor: pointer; }
@@ -51,8 +51,27 @@ function getWidgetValue(node, name, fallback) {
 function hideWidget(widget) {
   if (!widget) return;
   widget.type = "hidden";
+  widget.label = "";
+  widget.hidden = true;
+  widget.options = { ...(widget.options || {}), hidden: true };
   widget.draw = () => {};
   widget.computeSize = () => [0, -4];
+  for (const element of [widget.element, widget.inputEl]) {
+    if (!element?.style) continue;
+    element.style.display = "none";
+    element.style.width = "0px";
+    element.style.height = "0px";
+    element.style.opacity = "0";
+    element.style.pointerEvents = "none";
+  }
+}
+
+function hideGuidesWidget(node) {
+  const widget = getWidget(node, "guides_json");
+  if (!widget) return null;
+  hideWidget(widget);
+  widget.serializeValue = () => widget.value || "{\"version\":1,\"guides\":[]}";
+  return widget;
 }
 
 function nodeInnerWidth(node) {
@@ -391,11 +410,7 @@ function setupNode(node) {
   node.properties = node.properties || {};
   readGuides(node);
 
-  const guidesWidget = getWidget(node, "guides_json");
-  if (guidesWidget) {
-    hideWidget(guidesWidget);
-    guidesWidget.serializeValue = () => guidesWidget.value || "{\"version\":1,\"guides\":[]}";
-  }
+  hideGuidesWidget(node);
 
   const container = document.createElement("div");
   container.className = "ltx23-guide-root";
@@ -432,7 +447,7 @@ function setupNode(node) {
   setupPreview(node, container);
 
   container.addEventListener("click", async (event) => {
-    const action = event.target?.dataset?.action;
+    const action = event.target?.closest?.("button[data-action]")?.dataset?.action;
     if (!action) return;
     try {
       if (action === "add") await chooseGuide(node);
@@ -471,6 +486,7 @@ function setupNode(node) {
   const onConfigure = node.onConfigure;
   node.onConfigure = function (info) {
     onConfigure?.apply(this, arguments);
+    hideGuidesWidget(this);
     if (info?.properties?.ltx23_guides) this.properties.ltx23_guides = info.properties.ltx23_guides;
     renderRows(this);
     setGuidesJson(this);
@@ -485,6 +501,7 @@ function setupNode(node) {
   const onDrawForeground = node.onDrawForeground;
   node.onDrawForeground = function () {
     onDrawForeground?.apply(this, arguments);
+    hideGuidesWidget(this);
     if (this._ltx23) {
       const width = `${nodeInnerWidth(this)}px`;
       if (this._ltx23.container?.style.width !== width) {
