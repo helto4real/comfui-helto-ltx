@@ -623,6 +623,15 @@ git clone https://github.com/helto4real/comfui-helto-ltx.git
 
 Restart ComfyUI after installing or after changing backend Python files.
 
+## Dependencies
+
+No extra Python dependencies are required beyond a working ComfyUI installation
+with native LTXV support.
+
+This package uses ComfyUI's own Python environment and native LTXV modules,
+including `comfy_extras.nodes_lt`. Do not install PyTorch or CUDA packages from
+this custom node package; those should match your ComfyUI installation.
+
 ## Validation
 
 Lightweight syntax checks:
