@@ -48,6 +48,10 @@ def create_empty_latent(width, height, num_frames):
     return {"samples": latent}
 
 
+def half_size_dimension(value):
+    return max(32, (int(value) // 2 // 32) * 32)
+
+
 def preprocess_guide_image(image, img_compression):
     img_compression = int(img_compression)
     if img_compression <= 0:
@@ -116,6 +120,7 @@ def apply_guides(
     duplicate_policy,
     pad_color,
     img_compression,
+    half_size_first_pass,
     global_strength,
     guides_json,
     latent=None,
@@ -125,6 +130,9 @@ def apply_guides(
     guides = parse_guides_json(guides_json)
 
     if latent is None:
+        if half_size_first_pass:
+            width = half_size_dimension(width)
+            height = half_size_dimension(height)
         latent = create_empty_latent(width, height, num_frames)
     else:
         latent = {

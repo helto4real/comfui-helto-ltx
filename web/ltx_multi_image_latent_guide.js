@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const NODE_NAME = "LTX23MultiImageLatentGuide";
+const MANAGER_NODE_NAME = "LTX23ImageGuideManager";
 const GUIDE_ROW_HEIGHT = 34;
 
 function injectStyles() {
@@ -278,9 +279,9 @@ async function chooseGuide(node) {
   const body = document.createElement("div");
   body.innerHTML = `
     <div class="ltx23-guide-browser-controls">
-      <select class="folder" title="Folder"></select>
+      <select class="folder" title="Choose configured image folder"></select>
       <button class="scope ltx23-guide-browser-icon-button" type="button" title="Recursive folder view" aria-label="Recursive folder view"></button>
-      <label class="ltx23-guide-columns-control" title="Images per row">
+      <label class="ltx23-guide-columns-control" title="Thumbnail columns per row">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         <input class="columns" type="range" min="2" max="8" step="1" value="4">
         <span class="columns-value">4</span>
@@ -308,14 +309,14 @@ async function chooseGuide(node) {
   const folders = (await fetchJson("/ltx23_guides/folders")).folders;
   folderSelect.innerHTML = folders.map((folder) => `<option value="${folder.alias}">${folder.alias}${folder.exists ? "" : " (missing)"}</option>`).join("");
   function syncScopeButton() {
-    scopeButton.title = recursive ? "Recursive folder view" : "Folder-only view";
+    scopeButton.title = recursive ? "Show images recursively from subfolders" : "Show only images directly in this folder";
     scopeButton.setAttribute("aria-label", scopeButton.title);
     scopeButton.innerHTML = recursive
       ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h9a2 2 0 0 1 2 2v2"/><path d="M6 12v6a2 2 0 0 0 2 2h5"/><path d="M10 15h4l1.5 1.5H21v3.5H10z"/></svg>`
       : `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
   }
   function syncGridVisibility() {
-    hoverHideButton.title = hideImagesUntilHover ? "Hide images until hovering over window" : "Always show images";
+    hoverHideButton.title = hideImagesUntilHover ? "Hide thumbnails until the mouse is over this window" : "Always show thumbnails in this window";
     hoverHideButton.setAttribute("aria-label", hoverHideButton.title);
     hoverHideButton.innerHTML = hideImagesUntilHover
       ? `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/></svg>`
@@ -335,7 +336,7 @@ async function chooseGuide(node) {
       const tile = document.createElement("button");
       tile.type = "button";
       tile.className = "ltx23-guide-tile";
-      tile.title = image.filename;
+      tile.title = `${image.filename}\nClick to select. Ctrl-click for large preview.`;
       tile.innerHTML = `
         <img src="${escapeHtml(image.thumb_url)}" alt="">`;
       tile.addEventListener("click", (event) => {
@@ -427,13 +428,13 @@ function renderRows(node) {
     const row = document.createElement("div");
     row.className = "ltx23-guide-row";
     row.innerHTML = `
-      <input class="enabled" type="checkbox" ${guide.enabled !== false ? "checked" : ""} title="Enabled">
+      <input class="enabled" type="checkbox" ${guide.enabled !== false ? "checked" : ""} title="Enable or disable this guide without removing it">
       <div class="ltx23-guide-name" title="${guide.folder_alias}/${guide.filename}">${guide.filename}</div>
-      <input class="position" type="number" step="0.01" value="${guide.position ?? 0}" title="Position">
-      <input class="strength" type="number" min="0" max="1" step="0.01" value="${guide.strength ?? 1}" title="Strength">
-      <button class="up" title="Move up">↑</button>
-      <button class="down" title="Move down">↓</button>
-      <button class="remove" title="Remove">×</button>`;
+      <input class="position" type="number" step="0.01" value="${guide.position ?? 0}" title="Guide position in frames or seconds, depending on timing_mode. Negative frame values count from the end.">
+      <input class="strength" type="number" min="0" max="1" step="0.01" value="${guide.strength ?? 1}" title="Per-image strength before global_strength is applied">
+      <button class="up" title="Move guide up">↑</button>
+      <button class="down" title="Move guide down">↓</button>
+      <button class="remove" title="Remove guide">×</button>`;
     row.querySelector(".enabled").addEventListener("change", (event) => {
       guide.enabled = event.target.checked;
       setGuidesJson(node);
@@ -558,22 +559,22 @@ function setupNode(node) {
   container.className = "ltx23-guide-root";
   container.innerHTML = `
     <div class="ltx23-guide-toolbar">
-      <button data-action="add" title="Add guide image" aria-label="Add guide image">
+      <button data-action="add" title="Open image browser to add a manual guide image" aria-label="Add guide image">
         <svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
       </button>
-      <button data-action="folder-add" title="Add folder" aria-label="Add folder">
+      <button data-action="folder-add" title="Add a configured image folder alias" aria-label="Add folder">
         <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 14h6"/><path d="M15 11v6"/></svg>
       </button>
-      <button data-action="folder-remove" title="Remove folder" aria-label="Remove folder">
+      <button data-action="folder-remove" title="Remove a configured image folder alias" aria-label="Remove folder">
         <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 14h6"/></svg>
       </button>
-      <button data-action="refresh" title="Refresh folders and images" aria-label="Refresh folders and images">
+      <button data-action="refresh" title="Refresh folder and image listings" aria-label="Refresh folders and images">
         <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-13.7 5.7"/><path d="M4 12A8 8 0 0 1 17.7 6.3"/><path d="M7 18H3v-4"/><path d="M17 6h4v4"/></svg>
       </button>
-      <button data-action="save" title="Save guide set" aria-label="Save guide set">
+      <button data-action="save" title="Save current manual guide list as a guide set" aria-label="Save guide set">
         <svg viewBox="0 0 24 24"><path d="M5 3h12l2 2v16H5z"/><path d="M8 3v6h8V3"/><path d="M8 21v-7h8v7"/></svg>
       </button>
-      <button data-action="load" title="Load guide set" aria-label="Load guide set">
+      <button data-action="load" title="Load a saved guide set" aria-label="Load guide set">
         <svg viewBox="0 0 24 24"><path d="M3 6h6l2 2h10v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 15h6"/><path d="M15 12l3 3-3 3"/></svg>
       </button>
     </div>
@@ -664,7 +665,7 @@ function setupNode(node) {
 app.registerExtension({
   name: "helto.ltx23.multi_image_latent_guide",
   async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData.name !== NODE_NAME) return;
+    if (![NODE_NAME, MANAGER_NODE_NAME].includes(nodeData.name)) return;
     const onNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const result = onNodeCreated?.apply(this, arguments);
