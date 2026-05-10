@@ -425,6 +425,10 @@ async function chooseGuide(node) {
   let hideImagesUntilHover = true;
   const folders = (await fetchJson("/ltx23_guides/folders")).folders;
   folderSelect.innerHTML = folders.map((folder) => `<option value="${folder.alias}">${folder.alias}${folder.exists ? "" : " (missing)"}</option>`).join("");
+  const lastFolderAlias = node.properties.ltx23_last_folder_alias;
+  if (lastFolderAlias && folders.some((folder) => folder.alias === lastFolderAlias)) {
+    folderSelect.value = lastFolderAlias;
+  }
   function syncScopeButton() {
     scopeButton.title = recursive ? "Show images recursively from subfolders" : "Show only images directly in this folder";
     scopeButton.setAttribute("aria-label", scopeButton.title);
@@ -486,6 +490,7 @@ async function chooseGuide(node) {
     syncGridVisibility();
   }
   async function loadImages() {
+    node.properties.ltx23_last_folder_alias = folderSelect.value;
     const data = await fetchJson(`/ltx23_guides/images?alias=${encodeURIComponent(folderSelect.value)}&recursive=${recursive ? "1" : "0"}`);
     availableImages = data.images;
     renderImageGrid();
@@ -507,6 +512,7 @@ async function chooseGuide(node) {
   await loadImages();
   showDialog("Add Guide Image", body, async () => {
     if (!selectedImage) throw new Error("Select an image first.");
+    node.properties.ltx23_last_folder_alias = folderSelect.value;
     const guide = {
       folder_alias: folderSelect.value,
       filename: selectedImage.filename,
@@ -770,7 +776,12 @@ function setupNode(node) {
   node.onSerialize = function (info) {
     setGuidesJson(this);
     onSerialize?.apply(this, arguments);
-    info.properties = { ...(info.properties || {}), ltx23_guides: readGuides(this), ltx23_guides_json: getWidget(this, "guides_json")?.value };
+    info.properties = {
+      ...(info.properties || {}),
+      ltx23_guides: readGuides(this),
+      ltx23_guides_json: getWidget(this, "guides_json")?.value,
+      ltx23_last_folder_alias: this.properties?.ltx23_last_folder_alias || "",
+    };
   };
 
   const onConfigure = node.onConfigure;
@@ -778,6 +789,7 @@ function setupNode(node) {
     onConfigure?.apply(this, arguments);
     hideGuidesWidget(this);
     if (info?.properties?.ltx23_guides) this.properties.ltx23_guides = info.properties.ltx23_guides;
+    if (info?.properties?.ltx23_last_folder_alias) this.properties.ltx23_last_folder_alias = info.properties.ltx23_last_folder_alias;
     applyNodeTheme(this);
     renderRows(this);
     setGuidesJson(this);
