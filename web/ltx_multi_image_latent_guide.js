@@ -2,6 +2,7 @@ import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
 
 const NODE_NAME = "LTX23MultiImageLatentGuide";
+const GUIDE_ROW_HEIGHT = 34;
 
 function injectStyles() {
   if (document.getElementById("ltx23-guide-styles")) return;
@@ -15,12 +16,12 @@ function injectStyles() {
     .ltx23-guide-toolbar button { width: 28px; height: 28px; padding: 2px; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     .ltx23-guide-toolbar svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
     .ltx23-guide-toolbar button:hover, .ltx23-guide-row button:hover { background: #444; }
-    .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 130px; overflow: hidden auto; border: 1px solid #333; border-radius: 4px; }
+    .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 172px; overflow: hidden; border: 1px solid #333; border-radius: 4px; }
     .ltx23-guide-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px 48px 26px 26px 28px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid #2d2d2d; }
     .ltx23-guide-row:last-child { border-bottom: 0; }
     .ltx23-guide-row input, .ltx23-guide-row select { min-width: 0; background: #181818; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px 3px; }
     .ltx23-guide-row button { min-width: 0; height: 24px; padding: 1px 4px; }
-    .ltx23-guide-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ltx23-guide-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: zoom-in; }
     .ltx23-guide-preview { position: fixed; z-index: 10000; pointer-events: none; display: none; max-width: 520px; max-height: 380px; overflow: auto; background: #191919; border: 1px solid #555; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,.45); padding: 8px; }
     .ltx23-guide-preview.visible { display: block; }
     .ltx23-guide-preview-item { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 5px; border-bottom: 1px solid #303030; }
@@ -80,9 +81,8 @@ function nodeInnerWidth(node) {
 
 function guideWidgetHeight(node) {
   const rowCount = readGuides(node).length;
-  const rowHeight = 30;
   const visibleRows = Math.min(rowCount, 5);
-  const listHeight = visibleRows > 0 ? visibleRows * rowHeight + 2 : 0;
+  const listHeight = visibleRows > 0 ? visibleRows * GUIDE_ROW_HEIGHT + 2 : 0;
   return 76 + listHeight;
 }
 
@@ -97,10 +97,12 @@ function updateNodeHeight(node) {
       list.style.display = "none";
       list.style.height = "0px";
     } else {
-      const height = Math.min(rowCount, 5) * 30 + 2;
+      const visibleRows = Math.min(rowCount, 5);
+      const height = visibleRows * GUIDE_ROW_HEIGHT + 2;
       list.style.display = "";
       list.style.height = `${height}px`;
       list.style.maxHeight = `${height}px`;
+      list.style.overflowY = rowCount > visibleRows ? "auto" : "hidden";
     }
   }
   if (node._ltx23.container) {
@@ -330,6 +332,10 @@ function renderRows(node) {
       setGuidesJson(node);
       renderRows(node);
     });
+    const name = row.querySelector(".ltx23-guide-name");
+    name.addEventListener("mouseenter", (event) => showPreviewForGuide(node, guide, event));
+    name.addEventListener("mousemove", (event) => positionPreview(node, event));
+    name.addEventListener("mouseleave", () => hidePreview(node));
     list.appendChild(row);
   }
   updateSummary(node);
@@ -367,42 +373,45 @@ function setupPreview(node, container) {
   document.body.appendChild(panel);
   node._ltx23.preview = panel;
 
-  container.addEventListener("mouseenter", async () => {
-    const guides = readGuides(node).filter((guide) => guide.enabled !== false);
-    panel.innerHTML = "";
-    for (const guide of guides) {
-      const targetRatio = Number(getWidgetValue(node, "width", 768)) / Number(getWidgetValue(node, "height", 512));
-      const guideRatio = guide.width && guide.height ? guide.width / guide.height : targetRatio;
-      const ratioWarning = Math.abs(targetRatio - guideRatio) > 0.02;
-      const item = document.createElement("div");
-      item.className = "ltx23-guide-preview-item";
-      const thumbUrl = `/ltx23_guides/thumb?alias=${encodeURIComponent(guide.folder_alias)}&filename=${encodeURIComponent(guide.filename)}`;
-      item.innerHTML = `
-        <img src="${thumbUrl}" alt="">
-        <div>
-          <div>${guide.filename}</div>
-          <div class="ltx23-guide-muted">${guide.folder_alias}</div>
-          <div>${guide.position}${getWidgetValue(node, "timing_mode", "frame") === "seconds" ? "s" : "f"} -> ${calcFrame(node, guide)}f</div>
-          <div>strength ${guide.strength ?? 1}</div>
-          <div>${guide.enabled === false ? "disabled" : "enabled"}</div>
-          ${ratioWarning ? `<div class="ltx23-guide-warning">aspect ratio differs</div>` : ""}
-        </div>`;
-      panel.appendChild(item);
-    }
-    if (!guides.length) panel.innerHTML = `<div class="ltx23-guide-muted">No enabled guides</div>`;
-    panel.classList.add("visible");
-  });
-  container.addEventListener("mousemove", (event) => {
-    panel.style.left = `${Math.min(window.innerWidth - 540, event.clientX + 14)}px`;
-    panel.style.top = `${Math.min(window.innerHeight - 400, event.clientY + 14)}px`;
-  });
-  container.addEventListener("mouseleave", () => panel.classList.remove("visible"));
-
   const onRemoved = node.onRemoved;
   node.onRemoved = function () {
     panel.remove();
     onRemoved?.apply(this, arguments);
   };
+}
+
+function positionPreview(node, event) {
+  const panel = node._ltx23?.preview;
+  if (!panel) return;
+  panel.style.left = `${Math.min(window.innerWidth - 540, event.clientX + 14)}px`;
+  panel.style.top = `${Math.min(window.innerHeight - 400, event.clientY + 14)}px`;
+}
+
+function hidePreview(node) {
+  node._ltx23?.preview?.classList.remove("visible");
+}
+
+function showPreviewForGuide(node, guide, event) {
+  const panel = node._ltx23?.preview;
+  if (!panel) return;
+  const targetRatio = Number(getWidgetValue(node, "width", 768)) / Number(getWidgetValue(node, "height", 512));
+  const guideRatio = guide.width && guide.height ? guide.width / guide.height : targetRatio;
+  const ratioWarning = Math.abs(targetRatio - guideRatio) > 0.02;
+  const thumbUrl = `/ltx23_guides/thumb?alias=${encodeURIComponent(guide.folder_alias)}&filename=${encodeURIComponent(guide.filename)}`;
+  panel.innerHTML = `
+    <div class="ltx23-guide-preview-item">
+      <img src="${thumbUrl}" alt="">
+      <div>
+        <div>${guide.filename}</div>
+        <div class="ltx23-guide-muted">${guide.folder_alias}</div>
+        <div>${guide.position}${getWidgetValue(node, "timing_mode", "frame") === "seconds" ? "s" : "f"} -> ${calcFrame(node, guide)}f</div>
+        <div>strength ${guide.strength ?? 1}</div>
+        <div>${guide.enabled === false ? "disabled" : "enabled"}</div>
+        ${ratioWarning ? `<div class="ltx23-guide-warning">aspect ratio differs</div>` : ""}
+      </div>
+    </div>`;
+  positionPreview(node, event);
+  panel.classList.add("visible");
 }
 
 function setupNode(node) {
