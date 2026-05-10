@@ -21,17 +21,33 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "ltx23-guide-styles";
   style.textContent = `
-    .ltx23-guide-root { box-sizing: border-box; font: 12px Arial, sans-serif; color: #ddd; width: 100%; max-width: 100%; overflow: hidden; background: #333; }
+    .ltx23-guide-root {
+      --ltx23-panel-bg: #333;
+      --ltx23-control-bg: #333;
+      --ltx23-control-hover-bg: #444;
+      --ltx23-input-bg: #181818;
+      --ltx23-border: #555;
+      --ltx23-row-border: #2d2d2d;
+      --ltx23-text: #ddd;
+      --ltx23-muted-text: #aaa;
+      box-sizing: border-box;
+      font: 12px Arial, sans-serif;
+      color: var(--ltx23-text);
+      width: 100%;
+      max-width: 100%;
+      overflow: hidden;
+      background: var(--ltx23-panel-bg);
+    }
     .ltx23-guide-root * { box-sizing: border-box; }
     .ltx23-guide-toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
-    .ltx23-guide-toolbar button, .ltx23-guide-row button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; cursor: pointer; }
+    .ltx23-guide-toolbar button, .ltx23-guide-row button { background: var(--ltx23-control-bg); color: var(--ltx23-text); border: 1px solid var(--ltx23-border); border-radius: 4px; padding: 3px 6px; cursor: pointer; }
     .ltx23-guide-toolbar button { width: 28px; height: 28px; padding: 2px; font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
     .ltx23-guide-toolbar svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .ltx23-guide-toolbar button:hover, .ltx23-guide-row button:hover { background: #444; }
-    .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 172px; overflow: hidden; border: 1px solid #333; border-radius: 4px; }
-    .ltx23-guide-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px 48px 26px 26px 28px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid #2d2d2d; }
+    .ltx23-guide-toolbar button:hover, .ltx23-guide-row button:hover { background: var(--ltx23-control-hover-bg); }
+    .ltx23-guide-list { width: 100%; min-width: 0; margin-top: 6px; max-height: 172px; overflow: hidden; border: 1px solid var(--ltx23-row-border); border-radius: 4px; }
+    .ltx23-guide-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) 54px 48px 26px 26px 28px; gap: 4px; align-items: center; padding: 4px; border-bottom: 1px solid var(--ltx23-row-border); }
     .ltx23-guide-row:last-child { border-bottom: 0; }
-    .ltx23-guide-row input, .ltx23-guide-row select { min-width: 0; background: #181818; color: #ddd; border: 1px solid #444; border-radius: 3px; padding: 2px 3px; }
+    .ltx23-guide-row input, .ltx23-guide-row select { min-width: 0; background: var(--ltx23-input-bg); color: var(--ltx23-text); border: 1px solid var(--ltx23-border); border-radius: 3px; padding: 2px 3px; }
     .ltx23-guide-row button { min-width: 0; height: 24px; padding: 1px 4px; }
     .ltx23-guide-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: zoom-in; }
     .ltx23-guide-preview { position: fixed; z-index: 10000; pointer-events: none; display: none; max-width: 520px; max-height: 380px; overflow: auto; background: #191919; border: 1px solid #555; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,.45); padding: 8px; }
@@ -39,7 +55,8 @@ function injectStyles() {
     .ltx23-guide-preview-item { display: grid; grid-template-columns: 74px 1fr; gap: 8px; padding: 5px; border-bottom: 1px solid #303030; }
     .ltx23-guide-preview-item:last-child { border-bottom: 0; }
     .ltx23-guide-preview-item img { max-width: 74px; max-height: 74px; object-fit: contain; background: #111; border: 1px solid #333; }
-    .ltx23-guide-muted { color: #888; }
+    .ltx23-guide-root .ltx23-guide-muted { color: var(--ltx23-muted-text); }
+    .ltx23-guide-preview .ltx23-guide-muted { color: #888; }
     .ltx23-guide-warning { color: #e6b85c; }
     .ltx23-guide-dialog { position: fixed; z-index: 10001; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; }
     .ltx23-guide-dialog-panel { width: 620px; max-width: 92vw; max-height: 84vh; overflow: auto; background: #222; border: 1px solid #555; border-radius: 6px; padding: 14px; color: #ddd; }
@@ -92,6 +109,74 @@ function escapeHtml(value) {
     "\"": "&quot;",
     "'": "&#39;",
   })[char]);
+}
+
+function parseHexColor(value, fallback = "#333333") {
+  const raw = String(value || fallback).trim();
+  const match = raw.match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return parseHexColor(fallback, "#333333");
+  const hex = match[1].length === 3
+    ? match[1].split("").map((char) => char + char).join("")
+    : match[1];
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function colorToHex(color) {
+  return `#${[color.r, color.g, color.b].map((channel) => {
+    const value = Math.max(0, Math.min(255, Math.round(channel)));
+    return value.toString(16).padStart(2, "0");
+  }).join("")}`;
+}
+
+function mixColor(color, target, amount) {
+  return {
+    r: color.r + (target.r - color.r) * amount,
+    g: color.g + (target.g - color.g) * amount,
+    b: color.b + (target.b - color.b) * amount,
+  };
+}
+
+function relativeLuminance(color) {
+  const values = [color.r, color.g, color.b].map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.03928
+      ? normalized / 12.92
+      : Math.pow((normalized + 0.055) / 1.055, 2.4);
+  });
+  return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+}
+
+function shiftColor(color, amount) {
+  const target = amount >= 0 ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 };
+  return mixColor(color, target, Math.abs(amount));
+}
+
+function setThemeVar(element, name, color) {
+  element.style.setProperty(name, typeof color === "string" ? color : colorToHex(color));
+}
+
+function applyNodeTheme(node) {
+  const root = node?._ltx23?.container;
+  if (!root) return;
+  const background = parseHexColor(node.bgcolor || node.color || "#333333");
+  const accent = parseHexColor(node.color || node.bgcolor || "#555555");
+  const isDark = relativeLuminance(background) < 0.45;
+  const signature = `${node.bgcolor || ""}|${node.color || ""}`;
+  if (root.dataset.themeSignature === signature) return;
+  root.dataset.themeSignature = signature;
+
+  setThemeVar(root, "--ltx23-panel-bg", background);
+  setThemeVar(root, "--ltx23-control-bg", shiftColor(background, isDark ? 0.08 : -0.06));
+  setThemeVar(root, "--ltx23-control-hover-bg", shiftColor(background, isDark ? 0.16 : -0.12));
+  setThemeVar(root, "--ltx23-input-bg", shiftColor(background, isDark ? -0.22 : 0.08));
+  setThemeVar(root, "--ltx23-border", mixColor(accent, isDark ? { r: 255, g: 255, b: 255 } : { r: 0, g: 0, b: 0 }, 0.35));
+  setThemeVar(root, "--ltx23-row-border", shiftColor(background, isDark ? -0.16 : -0.16));
+  setThemeVar(root, "--ltx23-text", isDark ? "#dddddd" : "#202020");
+  setThemeVar(root, "--ltx23-muted-text", isDark ? "#aaaaaa" : "#555555");
 }
 
 function hideWidget(widget) {
@@ -151,6 +236,7 @@ function updateNodeHeight(node) {
     }
   }
   if (node._ltx23.container) {
+    applyNodeTheme(node);
     node._ltx23.container.style.height = `${guideWidgetHeight(node)}px`;
     node._ltx23.container.style.width = `${innerWidth}px`;
     node._ltx23.container.style.maxWidth = `${innerWidth}px`;
@@ -607,6 +693,7 @@ function setupNode(node) {
     widget: guideWidget,
     list: container.querySelector(".ltx23-guide-list"),
   };
+  applyNodeTheme(node);
   setupPreview(node, container);
 
   container.addEventListener("click", async (event) => {
@@ -663,6 +750,7 @@ function setupNode(node) {
     onConfigure?.apply(this, arguments);
     hideGuidesWidget(this);
     if (info?.properties?.ltx23_guides) this.properties.ltx23_guides = info.properties.ltx23_guides;
+    applyNodeTheme(this);
     renderRows(this);
     setGuidesJson(this);
   };
@@ -677,6 +765,7 @@ function setupNode(node) {
   node.onDrawForeground = function () {
     onDrawForeground?.apply(this, arguments);
     hideGuidesWidget(this);
+    applyNodeTheme(this);
     if (this._ltx23) {
       const width = `${nodeInnerWidth(this)}px`;
       if (this._ltx23.container?.style.width !== width) {
