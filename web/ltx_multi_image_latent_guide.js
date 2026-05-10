@@ -65,7 +65,7 @@ function injectStyles() {
     .ltx23-guide-dialog-row input, .ltx23-guide-dialog-row select { background: #151515; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px; }
     .ltx23-guide-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
     .ltx23-guide-dialog-actions button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
-    .ltx23-guide-browser-controls { display: grid; grid-template-columns: 1fr auto minmax(130px, 180px); gap: 8px; align-items: center; margin-bottom: 8px; }
+    .ltx23-guide-browser-controls { display: grid; grid-template-columns: 1fr minmax(150px, 1fr) auto minmax(130px, 180px); gap: 8px; align-items: center; margin-bottom: 8px; }
     .ltx23-guide-browser-controls select, .ltx23-guide-browser-controls input { background: #151515; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px; }
     .ltx23-guide-browser-controls button { background: #333; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
     .ltx23-guide-browser-icon-button { width: 32px; height: 32px; padding: 4px !important; display: inline-flex; align-items: center; justify-content: center; }
@@ -395,6 +395,7 @@ async function chooseGuide(node) {
   body.innerHTML = `
     <div class="ltx23-guide-browser-controls">
       <select class="folder" title="Choose configured image folder"></select>
+      <input class="search" type="search" placeholder="Search images..." title="Search loaded image filenames and relative paths">
       <button class="scope ltx23-guide-browser-icon-button" type="button" title="Recursive folder view" aria-label="Recursive folder view"></button>
       <label class="ltx23-guide-columns-control" title="Thumbnail columns per row">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -411,6 +412,7 @@ async function chooseGuide(node) {
     <div class="ltx23-guide-dialog-row"><label>Strength</label><input class="strength" type="number" min="0" max="1" step="0.01" value="1"></div>
     <div class="ltx23-guide-dialog-row"><label>Label</label><input class="label" type="text"></div>`;
   const folderSelect = body.querySelector(".folder");
+  const searchInput = body.querySelector(".search");
   const scopeButton = body.querySelector(".scope");
   const columnsInput = body.querySelector(".columns");
   const columnsValue = body.querySelector(".columns-value");
@@ -446,11 +448,17 @@ async function chooseGuide(node) {
   }
   function renderImageGrid() {
     grid.innerHTML = "";
-    selectedImage = null;
-    for (const image of availableImages) {
+    const query = searchInput.value.trim().toLowerCase();
+    const visibleImages = query
+      ? availableImages.filter((image) => String(image.filename || "").toLowerCase().includes(query))
+      : availableImages;
+    if (selectedImage && !visibleImages.some((image) => image.filename === selectedImage.filename)) {
+      selectedImage = null;
+    }
+    for (const image of visibleImages) {
       const tile = document.createElement("button");
       tile.type = "button";
-      tile.className = "ltx23-guide-tile";
+      tile.className = `ltx23-guide-tile${selectedImage?.filename === image.filename ? " selected" : ""}`;
       tile.title = `${image.filename}\nClick to select. Ctrl-click for large preview.`;
       tile.innerHTML = `
         <img src="${escapeHtml(image.thumb_url)}" alt="">`;
@@ -466,7 +474,15 @@ async function chooseGuide(node) {
       });
       grid.appendChild(tile);
     }
-    meta.textContent = availableImages.length ? `${availableImages.length} images. Select one to add.` : "No images found.";
+    if (!availableImages.length) {
+      meta.textContent = "No images found.";
+    } else if (!visibleImages.length) {
+      meta.textContent = `No images match "${searchInput.value.trim()}".`;
+    } else if (query) {
+      meta.textContent = `${visibleImages.length} of ${availableImages.length} images match. Select one to add.`;
+    } else {
+      meta.textContent = `${availableImages.length} images. Select one to add.`;
+    }
     syncGridVisibility();
   }
   async function loadImages() {
@@ -480,6 +496,7 @@ async function chooseGuide(node) {
     syncScopeButton();
     await loadImages();
   });
+  searchInput.addEventListener("input", renderImageGrid);
   columnsInput.addEventListener("input", syncColumns);
   hoverHideButton.addEventListener("click", () => {
     hideImagesUntilHover = !hideImagesUntilHover;

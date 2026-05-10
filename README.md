@@ -267,6 +267,7 @@ When adding guide images, the image browser supports:
 ```text
 folder selection
 folder-only or recursive subfolder listing
+client-side search by filename or relative subfolder path
 hover-hidden image thumbnails
 toggle to keep thumbnails visible
 grid column slider
