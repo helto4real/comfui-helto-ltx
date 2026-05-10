@@ -607,16 +607,18 @@ thumbnail_cache/
 
 ## Installation
 
-Place or symlink this repository into ComfyUI's `custom_nodes` directory:
+Clone the repository into ComfyUI's `custom_nodes` directory:
 
 ```bash
-ln -s /path/to/comfyui-helto-ltx /path/to/ComfyUI/custom_nodes/comfyui-helto-ltx
+cd /path/to/ComfyUI/custom_nodes
+git clone https://github.com/helto4real/comfui-helto-ltx.git
 ```
 
-For the local development setup used by this project:
+Example for the local development path used by this project:
 
 ```bash
-ln -s /home/thhel/git/comfyui-helto-ltx /home/thhel/git/ComfyUI/custom_nodes/comfyui-helto-ltx
+cd /home/thhel/git/ComfyUI/custom_nodes
+git clone https://github.com/helto4real/comfui-helto-ltx.git
 ```
 
 Restart ComfyUI after installing or after changing backend Python files.
@@ -687,4 +689,3 @@ server-side state.
 Re-add the folder alias or update the guide set. Workflows intentionally store
 aliases and filenames instead of absolute paths, so aliases must exist in
 `config/folders.json`.
-
