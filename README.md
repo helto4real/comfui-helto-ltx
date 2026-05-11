@@ -10,17 +10,21 @@ resolution generation.
 
 ## Nodes
 
-The package currently exposes three nodes in the `LTX 2.3` category:
+The package currently exposes four nodes in the `LTX 2.3` category:
 
 ```text
 LTX 2.3 Image Guides (All-in-One)
 LTX 2.3 Image Guide Manager
 LTX 2.3 Apply Image Guides
+LTX 2.3 Generate All-in-One
 ```
 
 The all-in-one node is the compatibility and convenience node. The Manager and
 Apply nodes are the recommended setup for two-stage workflows, because one guide
 list can feed both the low-resolution and high-resolution stages.
+
+The Generate All-in-One node is a single-pass convenience node that also encodes
+prompts, samples, decodes the video, and returns audio.
 
 ## Native LTXV Behavior
 
@@ -72,6 +76,29 @@ latent -> sampler latent_image
 
 After sampling, use native `LTXVCropGuides` if your downstream workflow expects
 guide frames to be removed.
+
+### Single-Node Generation Workflow
+
+Use:
+
+```text
+LTX 2.3 Generate All-in-One
+```
+
+Connect:
+
+```text
+model -> model
+clip -> clip
+vae -> vae
+audio_vae -> audio_vae, optional for native_av audio mode
+audio -> audio, optional external audio source
+start_images -> start_images, optional
+```
+
+The node outputs decoded video frames as `IMAGE` and an `AUDIO` object. It is
+intended for single-pass LTXV or LTXV AV workflows, not two-stage upscale
+workflows.
 
 ### Two-Stage Low/High Resolution Workflow
 
@@ -226,10 +253,110 @@ Use this node once per sampler stage. In a two-stage workflow, one Apply node
 can guide the low-resolution stage and another Apply node can guide the
 high-resolution stage from the same Manager.
 
+### LTX 2.3 Generate All-in-One
+
+This node combines prompt encoding, guide management, native LTXV sampling,
+guide cropping, video decode, and audio output.
+
+Inputs:
+
+```text
+model: MODEL
+clip: CLIP
+vae: VAE
+positive_prompt: STRING
+negative_prompt: STRING
+width: INT
+height: INT
+fps: FLOAT
+num_frames: INT
+timing_mode: frame | seconds
+resize_mode: contain | pad | stretch | crop
+duplicate_policy: error | keep_first | keep_last | offset_next
+pad_color: STRING
+img_compression: INT
+global_strength: FLOAT
+lock_start_frames: BOOLEAN
+lock_end_frame: BOOLEAN
+start_images_strength: FLOAT
+seed: INT
+steps: INT
+cfg: FLOAT
+sampler_name: COMBO
+max_shift: FLOAT
+base_shift: FLOAT
+stretch: BOOLEAN
+terminal: FLOAT
+sigma_mode: ltx_scheduler | manual
+manual_sigmas: STRING
+audio_mode: passthrough | native_av
+guides_json: hidden STRING
+start_images: optional IMAGE
+audio: optional AUDIO
+audio_vae: optional VAE
+```
+
+Outputs:
+
+```text
+images: IMAGE
+audio: AUDIO
+```
+
+The node internally uses native ComfyUI LTXV components:
+
+```text
+CLIP text encode
+LTXVConditioning
+ModelSamplingLTXV
+LTXVScheduler or manual sigma parsing
+RandomNoise
+CFGGuider
+SamplerCustomAdvanced
+LTXVCropGuides
+VAE decode
+```
+
+Audio modes:
+
+```text
+passthrough:
+  sample video only
+  output connected audio trimmed/padded to video duration
+  output silence when no audio is connected
+
+native_av:
+  requires audio_vae and an LTXV AV model
+  with audio connected, encode the audio as a locked AV audio latent
+  without audio connected, create an empty audio latent and decode generated audio
+```
+
+Use this node when you want one node to produce decoded frames and audio. Use
+the Manager/Apply nodes when you need advanced multi-stage routing or two-stage
+upscale workflows.
+
+Sigma modes:
+
+```text
+ltx_scheduler:
+  use native LTXVScheduler with steps, max_shift, base_shift, stretch, terminal
+
+manual:
+  parse manual_sigmas and pass them directly to SamplerCustomAdvanced
+  steps, stretch, and terminal are ignored
+  max_shift and base_shift still patch ModelSamplingLTXV
+```
+
+The default manual sigma string matches a common LTX 2.3 ManualSigmas schedule:
+
+```text
+1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0
+```
+
 ## Guide UI
 
-The custom frontend UI appears on the all-in-one node and the Image Guide
-Manager node.
+The custom frontend UI appears on the Image Guides all-in-one node, the Image
+Guide Manager node, and the Generate All-in-One node.
 
 Toolbar actions:
 
@@ -736,6 +863,29 @@ likely to crash while being migrated.
 
 Use the refresh button in the guide toolbar. If needed, restart ComfyUI to clear
 server-side state.
+
+### Generate All-in-One native_av audio fails
+
+`audio_mode = native_av` requires both:
+
+```text
+an LTXV AV model
+audio_vae from the native LTXV Audio VAE Loader
+```
+
+Use `audio_mode = passthrough` if you only want to carry an external audio track
+alongside the generated video frames.
+
+### Generate All-in-One manual sigmas fail
+
+`sigma_mode = manual` requires at least two numeric values in `manual_sigmas`.
+The effective denoise step count is:
+
+```text
+number of sigma values - 1
+```
+
+For example, nine sigma values produce eight denoise steps.
 
 ### Missing folders or images in a guide set
 

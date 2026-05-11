@@ -3,17 +3,21 @@ import { api } from "../../scripts/api.js";
 
 const NODE_NAME = "LTX23MultiImageLatentGuide";
 const MANAGER_NODE_NAME = "LTX23ImageGuideManager";
+const GENERATE_NODE_NAME = "LTX23GenerateAllInOne";
 const GUIDE_ROW_HEIGHT = 34;
 const NODE_TITLES = {
   [NODE_NAME]: "LTX 2.3 Image Guides (All-in-One)",
   [MANAGER_NODE_NAME]: "LTX 2.3 Image Guide Manager",
+  [GENERATE_NODE_NAME]: "LTX 2.3 Generate All-in-One",
 };
 const MANAGED_TITLES = new Set([
   "LTX 2.3 Multi Image Latent Guide",
   "LTX 2.3 Image Guides (All-in-One)",
   "LTX 2.3 Image Guide Manager",
+  "LTX 2.3 Generate All-in-One",
   NODE_NAME,
   MANAGER_NODE_NAME,
+  GENERATE_NODE_NAME,
 ]);
 
 function injectStyles() {
@@ -826,7 +830,7 @@ function setupNode(node) {
 app.registerExtension({
   name: "helto.ltx23.multi_image_latent_guide",
   async beforeRegisterNodeDef(nodeType, nodeData) {
-    if (![NODE_NAME, MANAGER_NODE_NAME].includes(nodeData.name)) return;
+    if (![NODE_NAME, MANAGER_NODE_NAME, GENERATE_NODE_NAME].includes(nodeData.name)) return;
     const onNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const result = onNodeCreated?.apply(this, arguments);
