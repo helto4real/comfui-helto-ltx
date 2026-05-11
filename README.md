@@ -353,6 +353,25 @@ The default manual sigma string matches a common LTX 2.3 ManualSigmas schedule:
 1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0
 ```
 
+Runtime status:
+
+```text
+Encoding prompts
+Preparing guides
+Preparing audio / Preparing passthrough audio
+Patching LTXV model sampling
+Building scheduler sigmas / Parsing manual sigmas
+Sampling video / Sampling audio/video
+Cropping guide latents
+Decoding video
+Decoding audio
+Done
+```
+
+These are phase labels for ComfyUI's normal progress/status display. During
+denoising, `SamplerCustomAdvanced` still owns the detailed per-step progress and
+preview updates.
+
 ## Guide UI
 
 The custom frontend UI appears on the Image Guides all-in-one node, the Image

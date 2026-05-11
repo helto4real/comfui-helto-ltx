@@ -5,6 +5,13 @@ const NODE_NAME = "LTX23MultiImageLatentGuide";
 const MANAGER_NODE_NAME = "LTX23ImageGuideManager";
 const GENERATE_NODE_NAME = "LTX23GenerateAllInOne";
 const GUIDE_ROW_HEIGHT = 34;
+const POSITIVE_PROMPT_HEIGHT = 180;
+const GUIDE_VISIBLE_ROWS = 5;
+const GUIDE_TOOLBAR_HEIGHT = 28;
+const GUIDE_TOP_PADDING = 2;
+const GUIDE_LIST_GAP = 6;
+const GUIDE_BOTTOM_PADDING = 14;
+const GUIDE_NODE_BOTTOM_CLEARANCE = 18;
 const NODE_TITLES = {
   [NODE_NAME]: "LTX 2.3 Image Guides (All-in-One)",
   [MANAGER_NODE_NAME]: "LTX 2.3 Image Guide Manager",
@@ -39,8 +46,10 @@ function injectStyles() {
       color: var(--ltx23-text);
       width: 100%;
       max-width: 100%;
+      padding-bottom: ${GUIDE_BOTTOM_PADDING}px;
+      border-radius: 0 0 6px 6px;
       overflow: hidden;
-      background: var(--ltx23-panel-bg);
+      background: transparent;
     }
     .ltx23-guide-root * { box-sizing: border-box; }
     .ltx23-guide-toolbar { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 2px; }
@@ -216,15 +225,36 @@ function hideGuidesWidget(node) {
   return widget;
 }
 
+function enlargePositivePromptWidget(node) {
+  const widget = getWidget(node, "positive_prompt");
+  if (!widget || widget.__ltx23PositivePromptSized) return;
+  widget.__ltx23PositivePromptSized = true;
+  const originalComputeSize = widget.computeSize?.bind(widget);
+  widget.computeSize = function (width) {
+    const size = originalComputeSize?.(width) || [width || 0, 60];
+    return [size[0], Math.max(size[1] || 0, POSITIVE_PROMPT_HEIGHT)];
+  };
+  for (const element of [widget.element, widget.inputEl]) {
+    if (!element?.style) continue;
+    element.style.minHeight = `${POSITIVE_PROMPT_HEIGHT}px`;
+    element.style.height = `${POSITIVE_PROMPT_HEIGHT}px`;
+  }
+}
+
 function nodeInnerWidth(node) {
   return Math.max((node.size?.[0] || 390) - 28, 320);
 }
 
-function guideWidgetHeight(node) {
+function guidePanelHeight(node) {
   const rowCount = readGuides(node).length;
-  const visibleRows = Math.min(rowCount, 5);
+  const visibleRows = Math.min(rowCount, GUIDE_VISIBLE_ROWS);
   const listHeight = visibleRows > 0 ? visibleRows * GUIDE_ROW_HEIGHT + 2 : 0;
-  return 76 + listHeight;
+  const listGap = visibleRows > 0 ? GUIDE_LIST_GAP : 0;
+  return GUIDE_TOP_PADDING + GUIDE_TOOLBAR_HEIGHT + listGap + listHeight + GUIDE_BOTTOM_PADDING;
+}
+
+function guideWidgetHeight(node) {
+  return guidePanelHeight(node) + GUIDE_NODE_BOTTOM_CLEARANCE;
 }
 
 function updateNodeHeight(node) {
@@ -238,7 +268,7 @@ function updateNodeHeight(node) {
       list.style.display = "none";
       list.style.height = "0px";
     } else {
-      const visibleRows = Math.min(rowCount, 5);
+      const visibleRows = Math.min(rowCount, GUIDE_VISIBLE_ROWS);
       const height = visibleRows * GUIDE_ROW_HEIGHT + 2;
       list.style.display = "";
       list.style.height = `${height}px`;
@@ -248,13 +278,14 @@ function updateNodeHeight(node) {
   }
   if (node._ltx23.container) {
     applyNodeTheme(node);
-    node._ltx23.container.style.height = `${guideWidgetHeight(node)}px`;
+    node._ltx23.container.style.height = `${guidePanelHeight(node)}px`;
     node._ltx23.container.style.width = `${innerWidth}px`;
     node._ltx23.container.style.maxWidth = `${innerWidth}px`;
   }
   if (node._ltx23.widget?.element) {
     node._ltx23.widget.element.style.width = `${innerWidth}px`;
     node._ltx23.widget.element.style.maxWidth = `${innerWidth}px`;
+    node._ltx23.widget.element.style.height = `${guideWidgetHeight(node)}px`;
   }
   requestAnimationFrame(() => {
     const width = Math.max(node.size?.[0] || 390, 390);
@@ -834,6 +865,7 @@ app.registerExtension({
     const onNodeCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const result = onNodeCreated?.apply(this, arguments);
+      if (nodeData.name === GENERATE_NODE_NAME) enlargePositivePromptWidget(this);
       setupNode(this);
       return result;
     };

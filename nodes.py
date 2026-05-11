@@ -3,6 +3,7 @@ import re
 import torch
 
 import comfy.samplers
+import comfy.utils
 from comfy_extras.nodes_custom_sampler import CFGGuider, RandomNoise, SamplerCustomAdvanced
 from comfy_extras.nodes_lt import (
     LTXVConcatAVLatent,
@@ -121,6 +122,9 @@ def generation_input_types():
             "audio": ("AUDIO", {"tooltip": "Optional external audio. In passthrough mode it is trimmed/padded and output; in native_av mode it is encoded as a locked audio latent."}),
             "audio_vae": ("VAE", {"tooltip": "Required for native_av audio mode. Use the native LTXV Audio VAE Loader."}),
         },
+        "hidden": {
+            "unique_id": "UNIQUE_ID",
+        },
     }
 
 
@@ -171,6 +175,33 @@ def parse_manual_sigmas(manual_sigmas):
     if len(sigmas) < 2:
         raise ValueError("manual_sigmas must contain at least 2 numeric sigma values.")
     return torch.FloatTensor(sigmas)
+
+
+class GenerationProgress:
+    def __init__(self, unique_id=None, total=12):
+        self.unique_id = str(unique_id) if unique_id is not None else None
+        self.total = int(total)
+        self.current = 0
+        try:
+            self.progress_bar = comfy.utils.ProgressBar(self.total, node_id=self.unique_id)
+        except Exception:
+            self.progress_bar = None
+
+    def phase(self, text):
+        self.current = min(self.current + 1, self.total)
+        if self.progress_bar is not None:
+            try:
+                self.progress_bar.update_absolute(self.current, self.total)
+            except Exception:
+                pass
+        if self.unique_id is None:
+            return
+        try:
+            import server
+
+            server.PromptServer.instance.send_progress_text(f"LTX 2.3 Generate: {text}", self.unique_id)
+        except Exception:
+            pass
 
 
 def node_output_value(output, index=0):
@@ -275,11 +306,18 @@ def sample_ltx_video(
     sigma_mode,
     manual_sigmas,
     audio_latent=None,
+    progress=None,
 ):
+    if progress is not None:
+        progress.phase("Patching LTXV model sampling")
     model = node_output_value(ModelSamplingLTXV.execute(model, max_shift, base_shift, video_latent))
     if sigma_mode == "manual":
+        if progress is not None:
+            progress.phase("Parsing manual sigmas")
         sigmas = parse_manual_sigmas(manual_sigmas)
     elif sigma_mode == "ltx_scheduler":
+        if progress is not None:
+            progress.phase("Building scheduler sigmas")
         sigmas = node_output_value(LTXVScheduler.execute(steps, max_shift, base_shift, stretch, terminal, video_latent))
     else:
         raise ValueError(f"Unsupported sigma_mode: {sigma_mode}")
@@ -294,6 +332,9 @@ def sample_ltx_video(
     if audio_latent is not None:
         sampling_latent = node_output_value(LTXVConcatAVLatent.execute(video_latent, audio_latent))
 
+    if progress is not None:
+        sampling_label = "Sampling audio/video" if audio_latent is not None else "Sampling video"
+        progress.phase(f"{sampling_label} ({max(0, int(sigmas.shape[0]) - 1)} steps)")
     sampled = node_output_value(SamplerCustomAdvanced.execute(noise, guider, sampler, sigmas, sampling_latent), 1)
     if audio_latent is not None:
         separated = LTXVSeparateAVLatent.execute(sampled)
@@ -302,6 +343,8 @@ def sample_ltx_video(
     else:
         video_latent, sampled_audio_latent = sampled, None
 
+    if progress is not None:
+        progress.phase("Cropping guide latents")
     cropped = LTXVCropGuides.execute(positive, negative, video_latent)
     video_latent = node_output_value(cropped, 2)
     return video_latent, sampled_audio_latent
@@ -639,7 +682,9 @@ class LTX23GenerateAllInOne:
         start_images=None,
         audio=None,
         audio_vae=None,
+        unique_id=None,
     ):
+        progress = GenerationProgress(unique_id)
         width = (int(width) // 32) * 32
         height = (int(height) // 32) * 32
         if width <= 0 or height <= 0:
@@ -649,8 +694,10 @@ class LTX23GenerateAllInOne:
         if audio_mode == "native_av" and not is_ltxav_model(model):
             raise ValueError("audio_mode native_av requires an LTXV AV model.")
 
+        progress.phase("Encoding prompts")
         positive = encode_prompt(clip, positive_prompt)
         negative = encode_prompt(clip, negative_prompt)
+        progress.phase("Preparing guides")
         positive, negative, video_latent = run_apply_guides(
             positive,
             negative,
@@ -674,6 +721,10 @@ class LTX23GenerateAllInOne:
             lock_end_frame,
         )
 
+        if audio_mode == "native_av":
+            progress.phase("Preparing audio")
+        else:
+            progress.phase("Preparing passthrough audio")
         audio_latent, output_audio = build_audio_for_generation(audio_mode, audio, audio_vae, num_frames, fps)
         video_latent, sampled_audio_latent = sample_ltx_video(
             model=model,
@@ -692,11 +743,15 @@ class LTX23GenerateAllInOne:
             sigma_mode=sigma_mode,
             manual_sigmas=manual_sigmas,
             audio_latent=audio_latent,
+            progress=progress,
         )
 
+        progress.phase("Decoding video")
         images = decode_video_latent(vae, video_latent)
         if audio_mode == "native_av" and audio is None and sampled_audio_latent is not None:
+            progress.phase("Decoding audio")
             output_audio = node_output_value(LTXVAudioVAEDecode.execute(sampled_audio_latent, audio_vae))
+        progress.phase("Done")
         return images, output_audio
 
 
