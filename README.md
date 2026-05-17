@@ -619,6 +619,13 @@ Locked frames are VAE-level latent replacement after resize/pad/crop. They are
 not pixel-perfect copies of the source image after decode, but they should hold
 the beginning or ending image more strongly than guide-only conditioning.
 
+For `lock_end_frame`, remember that LTXV latents are temporal blocks. The final
+latent slot represents the end block of the video, not only the final pixel
+frame. If the last few frames look distorted, over-constrained, or transition
+oddly into the end image, disable `lock_end_frame` and use a normal manual
+guide at `-1` instead. This keeps the final image as a native LTXV guide
+reference and usually gives a more natural ending.
+
 `img_compression` is not applied to locked latent insertion because compression
 would make the locked frame less faithful. It still applies to normal appended
 guide references.
@@ -862,6 +869,11 @@ Use frame position:
 Make sure `num_frames` matches the active latent/video length. If a connected
 latent has a different length than the Manager, the latent length is the actual
 runtime length.
+
+If the last few frames look strange and `lock_end_frame` is enabled, try
+disabling it. A locked end image writes into the final latent block, which can
+affect several ending frames. A normal `-1` guide is often better for first-frame
+/ last-frame workflows.
 
 ### The output contains extra guide frames
 
